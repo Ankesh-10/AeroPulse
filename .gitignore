@@ -1,0 +1,7 @@
+.planning/
+models/rf_*.joblib
+.venv/
+__pycache__/
+.pytest_cache/
+.streamlit/secrets.toml
+smoke/

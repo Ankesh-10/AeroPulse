@@ -1,0 +1,7 @@
+xgboost==3.4.1
+scikit-learn==1.9.1
+pandas==3.0.5
+numpy==2.5.3
+shap==0.53.0
+streamlit==1.65.0
+matplotlib==3.11.2
