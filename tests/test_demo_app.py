@@ -276,3 +276,39 @@ def test_capped_prediction_and_above_cap_truth_labels(bundles):
     _assert_clean(at)
     notes = [c.value for c in at.caption if "above the 125 training cap" in c.value]
     assert len(notes) == 1 and "official" in notes[0]
+
+
+# ---------------------------------------------------------------- worst-case picker (D-11)
+def _reference_ranking(subset):
+    ref = pd.read_csv(ROOT / "outputs" / f"pred_{subset}.csv")
+    ref["err"] = ref["xgb_pred"] - ref["true_rul"]
+    ref["abs_err"] = ref["err"].abs()
+    return ref.sort_values(["abs_err", "unit"], ascending=[False, True], kind="stable").head(10)
+
+
+@pytest.mark.parametrize("subset", SUBSETS)
+def test_worst_cases_match_saved_predictions(subset, bundles):
+    ref = _reference_ranking(subset)
+    cases = demo_lib.worst_cases(bundles[subset])
+    assert [c.unit for c in cases] == ref["unit"].tolist()
+    assert [np.sign(c.error) for c in cases] == [np.sign(e) for e in ref["err"]]
+    np.testing.assert_allclose([c.error for c in cases], ref["err"].to_numpy(), atol=1e-3)
+    for c, t in zip(cases, ref["true_rul"]):
+        assert c.above_cap == (t > L.RUL_CAP)
+
+
+@pytest.mark.parametrize("subset", SUBSETS)
+def test_worst_case_pick_selects_engine(subset, bundles):
+    b = bundles[subset]
+    first = demo_lib.worst_cases(b)[0]
+    at = run_app(subset=subset)
+    assert not at.exception, [e.value for e in at.exception]
+    assert at.sidebar.selectbox(key="unit").value == 1
+    at.sidebar.selectbox(key=f"worst-{subset}").set_value(first.unit).run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error
+    assert at.sidebar.selectbox(key="unit").value == first.unit
+    assert at.sidebar.selectbox(key=f"worst-{subset}").value is None
+    eng = demo_lib.engine_frame(b, first.unit)
+    expected = demo_lib.predicted_label(float(eng["pred"].iloc[-1]))
+    assert _metric(at, "Predicted RUL (cycles)").value == expected

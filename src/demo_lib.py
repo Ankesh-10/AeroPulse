@@ -283,3 +283,54 @@ def true_rul_note(true_rul, at_last):
     if above_cap(true_rul):
         notes.append(f"above the {L.RUL_CAP} training cap")
     return notes
+
+
+# ---------------------------------------------------------------- worst-case engines (D-11)
+WORST_N = 10
+CAP_TAG = f" (true RUL above the {L.RUL_CAP} cap)"
+
+
+def error_word(err):
+    """'late' when the model predicts more RUL than the engine has, 'early' for less, else 'exact'."""
+    if err > 0:
+        return "late"
+    if err < 0:
+        return "early"
+    return "exact"
+
+
+@dataclasses.dataclass(frozen=True)
+class WorstCase:
+    unit: int
+    error: float  # predicted minus official RUL at the last observed cycle
+    pred: float
+    true_rul: float
+    above_cap: bool
+    label: str
+
+
+def worst_case_label(unit, err, true_rul):
+    """Picker label, for example 'Engine 34: +41 late'; tagged when the label cap drives the error."""
+    tag = CAP_TAG if above_cap(true_rul) else ""
+    return f"Engine {unit}: {err:+.0f} {error_word(err)}{tag}"
+
+
+def worst_cases(bundle, n=WORST_N):
+    """The n engines with the largest absolute last-cycle error, ties broken by unit (D-11).
+
+    Ranked against the official uncapped RUL, the project's evaluation rule; the cap tag
+    keeps the capped subsets honest without re-ranking or filtering.
+    """
+    last = L.last_cycle_rows(bundle.te)
+    rows = bundle.te.loc[last]
+    units = sorted(int(u) for u in bundle.te["unit"].unique())
+    truth = {u: float(t) for u, t in zip(units, np.asarray(bundle.rul, dtype=float))}
+    cases = []
+    for u, p in zip(rows["unit"].to_numpy(), rows["pred"].to_numpy()):
+        u, p = int(u), float(p)
+        err = p - truth[u]
+        cases.append(
+            WorstCase(u, err, p, truth[u], above_cap(truth[u]), worst_case_label(u, err, truth[u]))
+        )
+    cases.sort(key=lambda c: (-abs(c.error), c.unit))
+    return cases[:n]

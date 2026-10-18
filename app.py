@@ -56,6 +56,31 @@ units = sorted(bundle.te["unit"].unique())
 if st.session_state.get("unit") not in units:
     st.session_state["unit"] = units[0]  # stale selection after a subset switch resets cleanly
 unit = st.sidebar.selectbox("Engine (test set)", units, key="unit")
+
+
+def _pick_worst(key):
+    """Selectbox callback: jump to the chosen engine, then reset the picker (runs before the rerun)."""
+    chosen = st.session_state[key]
+    if chosen is not None:
+        st.session_state["unit"] = chosen
+        st.session_state[key] = None
+
+
+wkey = f"worst-{subset}"
+cases = demo_lib.worst_cases(bundle)
+_labels = {c.unit: c.label for c in cases}
+st.sidebar.selectbox(
+    "Worst-case engines (largest last-cycle errors)",
+    [None, *[c.unit for c in cases]],
+    key=wkey,
+    format_func=lambda u: "Choose an engine..." if u is None else _labels[u],
+    on_change=_pick_worst,
+    args=(wkey,),
+)
+st.sidebar.caption(
+    "The engines this model gets most wrong at their last observed cycle (predicted minus official "
+    "RUL), listed so the demo is not cherry-picked."
+)
 warn_rul = st.sidebar.slider(
     "Maintenance alert when predicted RUL is below (cycles)", 10, 80, 30, key="warn_rul"
 )

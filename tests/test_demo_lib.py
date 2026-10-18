@@ -160,3 +160,44 @@ def test_curve_figure_short_engines_have_one_axes_and_a_warmup_band(n):
     band = [p for p in fig.axes[0].patches if to_hex(p.get_facecolor()).upper() == "#F7F6F3"]
     assert band, "warm-up band in canvas-warm is missing"
     assert plt.get_fignums() == before
+
+
+# ---------------------------------------------------------------- worst-case engines
+def _worst_bundle(errors, truths):
+    """Synthetic Bundle: engine u has 3 cycles and last-cycle pred = truth + error."""
+    n = len(errors)
+    unit = np.repeat(np.arange(1, n + 1), 3)
+    cycle = np.tile(np.arange(1, 4), n)
+    pred = np.zeros(3 * n)
+    pred[2::3] = np.asarray(truths, float) + np.asarray(errors, float)
+    te = pd.DataFrame({"unit": unit, "cycle": cycle, "pred": pred})
+    return D.Bundle(None, None, te, None, np.asarray(truths, float), None)
+
+
+def test_worst_cases_ranking_labels_and_cap_tag():
+    errors = [5.0, -20.0, 41.0, 3.0, 20.0, -2.0, -12.0, 0.0, 8.0, -8.0, 1.0, 30.0]
+    truths = [50.0] * 12
+    truths[6] = 130.0  # engine 7: above the cap
+    b = _worst_bundle(errors, truths)
+    cases = D.worst_cases(b)
+    assert len(cases) == 10
+    # |err|: 41 (u3), 30 (u12), 20 (u2 before u5: tie by unit), 20 (u5), 12 (u7), 8 (u9), 8 (u10), 5, 3, 2
+    assert [c.unit for c in cases] == [3, 12, 2, 5, 7, 9, 10, 1, 4, 6]
+    assert cases[0].label == "Engine 3: +41 late"
+    assert cases[4].label == "Engine 7: -12 early (true RUL above the 125 cap)"
+    assert cases[4].above_cap and not cases[0].above_cap
+    assert cases[0].error == 41.0 and cases[0].true_rul == 50.0
+    assert [c.error for c in D.worst_cases(b, n=3)] == [41.0, 30.0, -20.0]
+
+
+def test_worst_cases_with_few_engines_lists_all_and_labels_exact():
+    b = _worst_bundle([0.0, 4.0, -4.0], [30.0, 30.0, 30.0])
+    cases = D.worst_cases(b)
+    assert [c.unit for c in cases] == [2, 3, 1]
+    assert cases[2].label == "Engine 1: +0 exact"
+
+
+def test_error_word():
+    assert D.error_word(0.1) == "late"
+    assert D.error_word(-0.1) == "early"
+    assert D.error_word(0.0) == "exact"
