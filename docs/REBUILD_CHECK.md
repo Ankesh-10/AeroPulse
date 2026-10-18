@@ -69,3 +69,7 @@ ba0d034877e0199e8f482c97203952470d68d5c844db9025ab9ffb41d5ad79ad  app.py
 ## Changes to the reconstruction
 
 None. The reconstruction matched the research hashes exactly, so no line was changed.
+
+## Post-rebuild change (Phase 2, RERUN-04)
+
+The only deviation from Appendix B is commit c0cb307, confined to the persist block of `run_subset`: the gain-importance keys are mapped to feature names, and two additive seed-mean prediction columns are written to `pred_FD00N.csv`. `src/run_experiments.py` therefore no longer matches its hash line above, by design, while `src/rul_lib.py` and `app.py` still do. The verbatim bytes stay checkable with `git show 1c3469a:src/run_experiments.py | sha256sum`. The post-edit hash and the full diff are in `docs/FROZEN.md`.
