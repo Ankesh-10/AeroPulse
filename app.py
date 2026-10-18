@@ -115,10 +115,13 @@ _notes = [
 c2.caption("; ".join(_notes))
 with c3.container(border=True):
     st.caption("Status")
-    if pred_now < warn_rul:
-        st.badge("SCHEDULE MAINTENANCE", color="red")
+    _status, _colour = demo_lib.alert_status(pred_now, warn_rul)
+    st.badge(_status, color=_colour)
+    if cycle == max_c:
+        _err = pred_now - true_final
+        st.caption(f"Last-cycle error: {_err:+.1f} cycles ({demo_lib.error_word(_err)})")
     else:
-        st.badge("HEALTHY", color="green")
+        st.caption("The official RUL is known only at the last observed cycle.")
 
 left, right = st.columns(2)
 with left:
@@ -133,9 +136,56 @@ with right:
         fig = demo_lib.waterfall_figure(bundle, row.name)
         st.pyplot(fig)
         plt.close(fig)
+        st.caption(demo_lib.WATERFALL_NOTE)
+        st.caption(demo_lib.FEATURE_LEGEND)
+        if demo_lib.raw_prediction(bundle, row.name) < 0:
+            st.caption(
+                "The model's raw output for this cycle is below 0; the app shows predictions clipped at 0."
+            )
+
+with st.expander("Why late predictions cost more (NASA score)"):
+    st.markdown(demo_lib.NASA_EXPLANATION)
+    _late, _early = demo_lib.nasa_examples()
+    st.markdown(
+        f"Example: an engine predicted 10 cycles late costs {_late:.2f}; "
+        f"predicted 10 cycles early it costs {_early:.2f}."
+    )
+    _d, _cost = demo_lib.nasa_point(true_final, float(eng["pred"].iloc[-1]))
+    fig = demo_lib.nasa_figure(_d, _cost)
+    st.pyplot(fig)
+    plt.close(fig)
+    st.caption(
+        f"Engine {unit} at its last observed cycle, where the official RUL is known: "
+        f"error {_d:+.1f} cycles ({demo_lib.error_word(_d)}), NASA cost {_cost:.2f}."
+    )
 
 with st.expander("Sensor trends"):
     sensors = bundle.prep["sensors"]
     picked = st.multiselect("Sensors", sensors, default=sensors[:4], key=f"sensors-{subset}")
     if picked:
         st.line_chart(eng.set_index("cycle")[picked])
+
+with st.expander("How to read this"):
+    for _line in (
+        "- **Predicted RUL** is the model's estimate of the cycles left. It was trained on a target "
+        f"capped at {L.RUL_CAP}, so high values read as 125+ (model capped).",
+        "- **True RUL** is the official value at the last observed cycle; at earlier cycles it is "
+        "reconstructed from that value.",
+        "- **Status** compares the predicted RUL with the alert threshold in the sidebar.",
+        f"- **Warm-up**: for cycles 1-{demo_lib.WARMUP_MAX} the rolling features use fewer than "
+        f"{L.WINDOW} cycles, so predictions are less stable.",
+        "- **Worst-case engines** lists the engines this model gets most wrong, so the demo is not "
+        "cherry-picked.",
+        "- **Waterfall**: blue bars raise the predicted RUL, red bars lower it.",
+    ):
+        st.markdown(_line)
+    try:
+        st.markdown(demo_lib.model_card_line(demo_lib.model_card(subset)))
+        st.caption(demo_lib.NOISE_NOTE)
+    except (KeyError, ValueError):
+        st.caption("The model card could not be read from the saved results.")
+    st.caption(
+        "The demo serves the original XGBoost model, which includes the cycle feature (the engine's "
+        "age, a strong driver, so part of its skill is age-based). A version without it is reported "
+        "only as an ablation."
+    )

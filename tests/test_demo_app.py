@@ -312,3 +312,100 @@ def test_worst_case_pick_selects_engine(subset, bundles):
     eng = demo_lib.engine_frame(b, first.unit)
     expected = demo_lib.predicted_label(float(eng["pred"].iloc[-1]))
     assert _metric(at, "Predicted RUL (cycles)").value == expected
+
+
+# ---------------------------------------------------------------- SHAP, panels, badge, page order
+@pytest.mark.parametrize("subset", SUBSETS)
+def test_real_model_shap_is_additive_and_matches_pred_contribs(subset, bundles):
+    import xgboost
+
+    b = bundles[subset]
+    labels = list(b.X.index)
+    picks = [labels[0], labels[len(labels) // 3], labels[2 * len(labels) // 3], labels[-1]]
+    x = b.X.loc[picks].to_numpy(np.float32)
+    shap_vals = b.explainer.shap_values(x)
+    base = float(np.ravel(b.explainer.expected_value)[0])
+    raw = b.model.predict(x)
+    np.testing.assert_allclose(shap_vals.sum(axis=1) + base, raw, rtol=0, atol=1e-3)
+    contribs = b.model.get_booster().predict(xgboost.DMatrix(x), pred_contribs=True)
+    np.testing.assert_allclose(contribs[:, :-1], shap_vals, rtol=0, atol=1e-4)
+    np.testing.assert_allclose(contribs[:, -1], base, rtol=0, atol=1e-4)
+
+
+EXPANDERS = ["Why late predictions cost more (NASA score)", "Sensor trends", "How to read this"]
+
+
+@pytest.mark.parametrize("subset", SUBSETS)
+def test_panels_and_model_card(subset, bundles):
+    at = run_app(subset=subset)
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error, [e.value for e in at.error]
+    assert [e.label for e in at.expander] == EXPANDERS
+    assert images(at) >= 3
+    text = "\n".join([m.value for m in at.markdown] + [c.value for c in at.caption])
+    assert demo_lib.model_card_line(demo_lib.model_card(subset)) in text
+    assert demo_lib.NOISE_NOTE in text
+    assert demo_lib.WATERFALL_NOTE in text and demo_lib.FEATURE_LEGEND in text
+
+
+def test_alert_badge_flips_at_threshold(bundles):
+    import math
+
+    b = bundles["FD001"]
+    last = L.last_cycle_rows(b.te)
+    preds = b.te.loc[last, "pred"].to_numpy()
+    units = sorted(b.te["unit"].unique())
+    i = int(np.flatnonzero((preds > 11) & (preds < 79))[0])
+    unit, pred = int(units[i]), float(preds[i])
+    at = run_app(unit=unit)
+    at.sidebar.slider(key="warn_rul").set_value(math.floor(pred) + 1).run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert any(":red-badge[SCHEDULE MAINTENANCE]" in m.value for m in at.markdown)
+    at.sidebar.slider(key="warn_rul").set_value(math.floor(pred)).run()
+    assert any(":green-badge[HEALTHY]" in m.value for m in at.markdown)
+    assert not any(":red-badge[SCHEDULE MAINTENANCE]" in m.value for m in at.markdown)
+
+
+def test_page_structure_follows_d04():
+    at = run_app()
+    assert not at.exception, [e.value for e in at.exception]
+    side = [
+        w.label
+        for w in at.sidebar
+        if type(w).__name__ in ("Selectbox", "Slider")
+    ]
+    assert side == [
+        "C-MAPSS subset",
+        "Engine (test set)",
+        "Worst-case engines (largest last-cycle errors)",
+        "Maintenance alert when predicted RUL is below (cycles)",
+        "Observed up to cycle",
+    ]
+    order = [type(e).__name__ for e in at.main]
+    names = [
+        (type(e).__name__, getattr(e, "value", None) or getattr(e, "label", None)) for e in at.main
+    ]
+    first_metric = order.index("Metric")
+    first_image = order.index("Image")
+    first_expander = order.index("Expander")
+    disclaimer = next(
+        i for i, (t, v) in enumerate(names) if t == "Caption" and demo_lib.DISCLAIMER in str(v)
+    )
+    assert disclaimer < first_metric < first_image < first_expander
+    images_before = sum(1 for t in order[:first_expander] if t == "Image")
+    assert images_before >= 2
+
+
+@pytest.mark.parametrize("subset", SUBSETS)
+def test_model_card_values_equal_results_json(subset):
+    import json
+
+    res = json.loads((ROOT / "outputs" / "results.json").read_text(encoding="utf-8"))[subset]
+    m = res["models"][demo_lib.MODEL_KEY]
+    assert demo_lib.model_card(subset) == {
+        "rmse_mean": m["rmse"]["mean"],
+        "rmse_std": m["rmse"]["std"],
+        "nasa_mean": m["nasa"]["mean"],
+        "nasa_std": m["nasa"]["std"],
+        "test_engines": res["test_engines"],
+    }

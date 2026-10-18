@@ -11,7 +11,8 @@ import matplotlib
 matplotlib.use("Agg")
 
 import dataclasses  # noqa: E402
-import json  # noqa: E402,F401
+import json  # noqa: E402
+import math  # noqa: E402
 import threading  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -221,18 +222,42 @@ def curve_figure(eng, cycle, true_final, warn_rul):
     return fig
 
 
+FEATURE_LEGEND = (
+    f"Feature names: s2 is a raw (condition-normalised) sensor; s2_mean, s2_std and s2_slope are its "
+    f"mean, standard deviation and least-squares slope over the last {L.WINDOW} cycles; cycle is the "
+    "engine's age in cycles."
+)
+WATERFALL_NOTE = (
+    "E[f(X)] is the model's average prediction; the bars move it to f(x), the prediction for this "
+    "cycle. Blue bars raise the predicted RUL, red bars lower it."
+)
+
+
+def shap_explanation(bundle, row_label):
+    """Single-row shap.Explanation for the waterfall: values, base value, features (D-05)."""
+    import shap
+
+    x = bundle.X.loc[[row_label]].to_numpy(np.float32)
+    vals = bundle.explainer.shap_values(x)[0]
+    base = float(np.ravel(bundle.explainer.expected_value)[0])
+    return shap.Explanation(
+        values=vals, base_values=base, data=x[0], feature_names=list(bundle.X.columns)
+    )
+
+
+def raw_prediction(bundle, row_label):
+    """The unclipped model output for one row (the waterfall's f(x), Pitfall 5)."""
+    x = bundle.X.loc[[row_label]].to_numpy(np.float32)
+    return float(bundle.model.predict(x)[0])
+
+
 def waterfall_figure(bundle, row_label):
     """SHAP waterfall for one row: raises-RUL contributions blue, lowers-RUL red (D-05, D-19)."""
     import matplotlib.pyplot as plt
     import shap
     from shap.plots import _style  # private but present in the pinned shap 0.53.0
 
-    x = bundle.X.loc[[row_label]].to_numpy(np.float32)
-    vals = bundle.explainer.shap_values(x)[0]
-    base = float(np.ravel(bundle.explainer.expected_value)[0])
-    expl = shap.Explanation(
-        values=vals, base_values=base, data=x[0], feature_names=list(bundle.X.columns)
-    )
+    expl = shap_explanation(bundle, row_label)
     with _SHAP_LOCK:
         old = _style.get_style()
         try:
@@ -334,3 +359,99 @@ def worst_cases(bundle, n=WORST_N):
         )
     cases.sort(key=lambda c: (-abs(c.error), c.unit))
     return cases[:n]
+
+
+# ---------------------------------------------------------------- alert, NASA cost, model card
+def alert_status(pred, threshold):
+    """(badge label, st.badge colour): maintenance below the threshold, healthy otherwise (DEMO-05)."""
+    if pred < threshold:
+        return "SCHEDULE MAINTENANCE", "red"
+    return "HEALTHY", "green"
+
+
+NASA_EXPLANATION = (
+    "The NASA score adds a cost for every engine that grows exponentially with the error "
+    "d = predicted minus true RUL. A late prediction (d above 0) would plan maintenance after the "
+    "engine has degraded, so its cost rises faster than the cost of an early prediction of the same size."
+)
+
+
+def nasa_point(true_rul, pred):
+    """(error d, NASA cost) for one engine; the cost is the frozen rul_lib.nasa_score (D-07)."""
+    return pred - true_rul, L.nasa_score([true_rul], [pred])
+
+
+def nasa_curve(d_marker=0.0, half_width=60.0, n=241):
+    """Symmetric error grid (odd length, contains 0) and the NASA cost at each point.
+
+    The cost depends only on d, so each point is the score of a pair (0, d) through rul_lib.
+    """
+    half = max(half_width, math.ceil(abs(d_marker)) + 10)
+    d = np.linspace(-half, half, n)
+    cost = np.array([L.nasa_score([0.0], [x]) for x in d])
+    return d, cost
+
+
+def nasa_examples(k=10):
+    """(cost of k cycles late, cost of k cycles early), both through nasa_point."""
+    return nasa_point(50.0, 50.0 + k)[1], nasa_point(50.0, 50.0 - k)[1]
+
+
+def nasa_figure(d_marker, cost_marker):
+    """Asymmetric cost curve with the selected engine's last-cycle error marked (D-07)."""
+    import matplotlib
+
+    c = COLORS
+    d, cost = nasa_curve(d_marker)
+    early, late = d <= 0, d >= 0
+    top = 1.25 * max(cost_marker, float(cost[0]))  # whole early branch inside; late branch leaves
+    with matplotlib.rc_context(plot_style()):
+        fig = Figure(figsize=FIG_SIZE)
+        ax = fig.subplots()
+        ax.axvline(0, color=c["ink_faint"], lw=0.8)
+        ax.plot(d[early], cost[early], color=c["early"], lw=2, label="Early (d below 0)")
+        ax.plot(d[late], cost[late], color=c["late"], lw=2, label="Late (d above 0)")
+        ax.plot([d_marker], [cost_marker], "o", color=c["ink_strong"], ms=6, label="_nolegend_")
+        ax.annotate(
+            f"{cost_marker:.2f}",
+            (d_marker, cost_marker),
+            textcoords="offset points",
+            xytext=(8, 8),
+            family="monospace",
+            color=c["ink_strong"],
+        )
+        ax.set_ylim(0, top)
+        ax.set_xlabel("Error d = predicted - true RUL (cycles)")
+        ax.set_ylabel("NASA cost for this engine")
+        ax.legend(loc="upper center")
+    return fig
+
+
+NOISE_NOTE = (
+    "Differences under about 1 cycle of RMSE are within noise for test sets of this size."
+)
+
+
+def model_card(subset, root=None):
+    """Baseline XGBoost test numbers read at runtime from the frozen archive (D-06, D-00e)."""
+    path = Path(root if root is not None else ROOT) / BASELINE
+    res = json.loads(path.read_text(encoding="utf-8"))[subset]
+    m = res["models"][MODEL_KEY]
+    return {
+        "rmse_mean": m["rmse"]["mean"],
+        "rmse_std": m["rmse"]["std"],
+        "nasa_mean": m["nasa"]["mean"],
+        "nasa_std": m["nasa"]["std"],
+        "test_engines": res["test_engines"],
+    }
+
+
+def model_card_line(card):
+    """One sentence: the served model's test RMSE and NASA score with their spread."""
+    pm = chr(0xB1)  # plus-minus sign, kept out of the source to stay ASCII
+    return (
+        f"XGBoost test RMSE {card['rmse_mean']:.2f} {pm} {card['rmse_std']:.2f} cycles, "
+        f"NASA score {card['nasa_mean']:.0f} {pm} {card['nasa_std']:.0f} "
+        f"(mean {pm} SD over 3 seeds, scored at the last observed cycle of each of the "
+        f"{card['test_engines']} test engines against the official RUL)."
+    )

@@ -201,3 +201,145 @@ def test_error_word():
     assert D.error_word(0.1) == "late"
     assert D.error_word(-0.1) == "early"
     assert D.error_word(0.0) == "exact"
+
+
+# ---------------------------------------------------------------- NASA panel, alert, model card
+def test_nasa_point_uses_rul_lib():
+    import math
+
+    d, cost = D.nasa_point(50.0, 60.0)
+    assert d == 10.0 and cost == pytest.approx(math.exp(1.0) - 1.0, abs=1e-12)
+    d, cost = D.nasa_point(60.0, 50.0)
+    assert d == -10.0 and cost == pytest.approx(math.exp(10 / 13) - 1.0, abs=1e-12)
+    assert D.nasa_point(40.0, 40.0)[1] == 0.0
+
+
+def test_nasa_curve_symmetric_and_covers_marker():
+    d, cost = D.nasa_curve()
+    assert len(d) % 2 == 1 and 0.0 in d
+    assert np.allclose(d, -d[::-1])
+    for x, c in zip(d, cost):
+        assert c == L.nasa_score([0.0], [x])
+    for x in (5, 20, 50):
+        i, j = int(np.flatnonzero(d == x)[0]), int(np.flatnonzero(d == -x)[0])
+        assert cost[i] > cost[j]
+    d2, _ = D.nasa_curve(-96.0)
+    assert d2.min() < -96 and d2.max() > 96
+
+
+def test_nasa_examples_late_costs_more_than_early():
+    late, early = D.nasa_examples(10)
+    assert late == D.nasa_point(50.0, 60.0)[1] and early == D.nasa_point(60.0, 50.0)[1]
+    assert late > early
+
+
+def test_nasa_figure_colours():
+    before = plt.get_fignums()
+    d, cost = D.nasa_point(60.0, 48.0)
+    fig = D.nasa_figure(d, cost)
+    try:
+        assert isinstance(fig, Figure) and plt.get_fignums() == before
+        ax = fig.axes[0]
+        inks = {to_hex(ln.get_color()).upper() for ln in ax.lines}
+        assert D.COLORS["early"].upper() in inks and D.COLORS["late"].upper() in inks
+        assert D.COLORS["ink_strong"].upper() in inks
+        marker = [ln for ln in ax.lines if ln.get_marker() not in (None, "None", "")][0]
+        y = float(marker.get_ydata()[0])
+        assert ax.get_ylim()[0] <= y <= ax.get_ylim()[1]
+        assert float(marker.get_xdata()[0]) == d
+    finally:
+        fig.clear()
+
+
+def test_alert_status_flips_at_threshold():
+    assert D.alert_status(29.9, 30) == ("SCHEDULE MAINTENANCE", "red")
+    assert D.alert_status(30.0, 30) == ("HEALTHY", "green")
+
+
+def _card_file(tmp_path):
+    import json
+
+    (tmp_path / "outputs").mkdir()
+    res = {
+        "FD009": {
+            "test_engines": 77,
+            "models": {
+                D.MODEL_KEY: {
+                    "rmse": {"mean": 12.3456, "std": 0.2},
+                    "nasa": {"mean": 456.7, "std": 12.4},
+                }
+            },
+        }
+    }
+    (tmp_path / "outputs" / "results_baseline.json").write_text(json.dumps(res), encoding="utf-8")
+
+
+def test_model_card_reads_json(tmp_path):
+    _card_file(tmp_path)
+    card = D.model_card("FD009", root=tmp_path)
+    assert card == {
+        "rmse_mean": 12.3456,
+        "rmse_std": 0.2,
+        "nasa_mean": 456.7,
+        "nasa_std": 12.4,
+        "test_engines": 77,
+    }
+    with pytest.raises(KeyError):
+        D.model_card("FD001", root=tmp_path)
+
+
+def test_model_card_line_formats(tmp_path):
+    _card_file(tmp_path)
+    line = D.model_card_line(D.model_card("FD009", root=tmp_path))
+    assert "12.35" in line and "0.20" in line and "457" in line and "12" in line
+    assert "77 test engines" in line and "3 seeds" in line and "±" in line
+
+
+# ---------------------------------------------------------------- tiny-model SHAP checks
+@pytest.fixture(scope="module")
+def tiny_bundle():
+    import shap
+    import xgboost
+
+    X = L.make_features(make_runs(), SENS, rolling=True)
+    y = np.random.default_rng(0).uniform(0, 125, len(X))
+    model = xgboost.XGBRegressor(n_estimators=5, max_depth=2, random_state=0).fit(X, y)
+    return D.Bundle(None, model, None, X, None, shap.TreeExplainer(model))
+
+
+def _style_snapshot(style):
+    """StyleConfig holds numpy arrays, so == is ambiguous: compare plain lists."""
+    import dataclasses
+
+    return {k: np.asarray(v).tolist() for k, v in dataclasses.asdict(style).items()}
+
+
+def test_tiny_model_waterfall_colours_rows_and_style_restored(tiny_bundle):
+    from shap.plots import _style
+
+    assert tiny_bundle.X.shape[1] == 13
+    before = _style_snapshot(_style.get_style())
+    fig = D.waterfall_figure(tiny_bundle, 5)
+    try:
+        assert tuple(fig.get_size_inches()) == pytest.approx(D.FIG_SIZE)
+        ax = fig.axes[0]
+        labels = [t.get_text() for t in ax.get_yticklabels()]
+        assert any("3 other features" in t for t in labels), labels
+        bar_colours = {to_hex(p.get_facecolor()).upper() for p in ax.patches}
+        allowed = {D.COLORS["early"].upper(), D.COLORS["late"].upper()}
+        assert bar_colours and bar_colours <= allowed, bar_colours
+        assert not ({"#FF0051", "#008BFB"} & bar_colours)
+        assert _style_snapshot(_style.get_style()) == before
+    finally:
+        plt.close(fig)
+
+
+def test_tiny_model_shap_is_additive(tiny_bundle):
+    for label in (0, 10, 30):
+        x = tiny_bundle.X.loc[[label]].to_numpy(np.float32)
+        vals = tiny_bundle.explainer.shap_values(x)[0]
+        base = float(np.ravel(tiny_bundle.explainer.expected_value)[0])
+        raw = D.raw_prediction(tiny_bundle, label)
+        assert float(vals.sum()) + base == pytest.approx(raw, abs=1e-3)
+        expl = D.shap_explanation(tiny_bundle, label)
+        assert float(expl.values.sum() + expl.base_values) == pytest.approx(raw, abs=1e-3)
