@@ -102,9 +102,12 @@ def test_free_port_is_bindable():
 def test_child_env_forces_utf8_and_drops_venv_variables(monkeypatch):
     monkeypatch.setenv("VIRTUAL_ENV", "somewhere")
     monkeypatch.setenv("PYTHONPATH", "elsewhere")
+    monkeypatch.setenv("PYTHONHOME", "base-of-another-python")
+    monkeypatch.setenv("UV_INTERNAL__PYTHONHOME", "base-of-another-python")
     env = C.child_env()
     assert env["PYTHONUTF8"] == "1" and env["PYTHONDONTWRITEBYTECODE"] == "1"
-    assert "VIRTUAL_ENV" not in env and "PYTHONPATH" not in env
+    for name in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_INTERNAL__PYTHONHOME"):
+        assert name not in env
 
 
 # ------------------------------------------------------------------------------------- pins

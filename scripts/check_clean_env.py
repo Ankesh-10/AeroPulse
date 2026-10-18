@@ -188,8 +188,10 @@ def child_env():
     env = dict(os.environ)
     env["PYTHONUTF8"] = "1"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env.pop("VIRTUAL_ENV", None)
-    env.pop("PYTHONPATH", None)
+    # The project venv's launcher exports PYTHONHOME (its base interpreter), which would make every
+    # child, including a venv of another Python version, load the wrong standard library.
+    for name in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_INTERNAL__PYTHONHOME", "__PYVENV_LAUNCHER__"):
+        env.pop(name, None)
     return env
 
 
