@@ -401,6 +401,19 @@ def stop_process(proc):
         pass
 
 
+# On Windows the asyncio proactor loop sometimes logs a connection reset when the probe client closes
+# its socket (seen on Python 3.14); it comes from the client side and says nothing about the app.
+_BENIGN_TRACEBACK = re.compile(
+    r"Exception in callback _ProactorBasePipeTransport\._call_connection_lost\(\)[\r\n]"
+    r".*?[\r\n]ConnectionResetError:[^\r\n]*",
+    re.S)
+
+
+def log_shows_failure(text):
+    """True when the server log holds a traceback other than the benign proactor connection reset."""
+    return "Traceback" in _BENIGN_TRACEBACK.sub("", str(text))
+
+
 def _http_status(url, timeout):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
@@ -432,8 +445,9 @@ def probe(venv_py, scratch):
         finally:
             stop_process(proc)
     log_text = log_path.read_text(encoding="utf-8", errors="replace")
-    ok = health == 200 and script == 200 and "Traceback" not in log_text
+    ok = health == 200 and script == 200 and not log_shows_failure(log_text)
     if not ok:
+        print(f"STREAMLIT PROBE health {health} script-health-check {script}")
         print("STREAMLIT LOG TAIL")
         print(_tail(log_text, 30))
     return {"health": health, "script": script, "ok": ok}

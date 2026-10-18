@@ -110,6 +110,29 @@ def test_child_env_forces_utf8_and_drops_venv_variables(monkeypatch):
         assert name not in env
 
 
+# ------------------------------------------------------------------------------------- server log
+
+BENIGN_LOG = """Uvicorn server started on 127.0.0.1:55603
+Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+Traceback (most recent call last):
+  File "asyncio/events.py", line 94, in _run
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+"""
+REAL_LOG = """Traceback (most recent call last):
+  File "app.py", line 3, in <module>
+ModuleNotFoundError: No module named 'x'
+"""
+
+
+def test_log_shows_failure_ignores_only_the_benign_proactor_reset():
+    assert C.log_shows_failure("") is False
+    assert C.log_shows_failure(BENIGN_LOG) is False
+    assert C.log_shows_failure(REAL_LOG) is True
+    assert C.log_shows_failure(BENIGN_LOG + REAL_LOG) is True
+    assert C.log_shows_failure(REAL_LOG + BENIGN_LOG) is True
+
+
 # ------------------------------------------------------------------------------------- pins
 
 def test_requirement_pins_are_exactly_the_seven_runtime_pins():
