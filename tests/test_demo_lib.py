@@ -128,9 +128,11 @@ def test_restore_command_regenerates_or_restores_the_exact_path(subset):
     assert D.restore_command("outputs/results_baseline.json", subset) == (
         "git checkout -- outputs/results_baseline.json"
     )
-    expected = f"python src/run_experiments.py {subset}"
-    assert D.restore_command(f"models/xgb_{subset}.json", subset) == expected
-    assert D.restore_command(f"models/prep_{subset}.joblib", subset) == expected
+    # Models are committed artefacts: restore from git, never retrain (a retrain would desynchronise
+    # the model card, which quotes the frozen baseline, from the served model).
+    for name in (f"models/xgb_{subset}.json", f"models/prep_{subset}.joblib"):
+        assert D.restore_command(name, subset) == f"git checkout -- {name}"
+        assert "run_experiments" not in D.restore_command(name, subset)
 
 
 @pytest.mark.parametrize("path", ["outputs/results.json", "app.py", "src/rul_lib.py"])

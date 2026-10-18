@@ -93,7 +93,12 @@ def missing_files(subset, root=None):
 
 
 def restore_command(rel_path, subset):
-    """A command that restores or regenerates exactly this path (D-03)."""
+    """A command that restores exactly this committed path from git (D-03).
+
+    A retrain (run_experiments.py) is deliberately not suggested: it needs optuna, takes minutes,
+    and overwrites outputs/results.json and the served model, so the model card would no longer
+    describe the model that is served.
+    """
     rel = str(rel_path).replace("\\", "/")
     if rel.startswith("data_raw/"):
         return "git checkout -- data_raw"
@@ -101,7 +106,7 @@ def restore_command(rel_path, subset):
         # Tracked Phase 2 archive: run_experiments.py writes only outputs/results.json.
         return "git checkout -- outputs/results_baseline.json"
     if rel.startswith("models/"):
-        return f"python src/run_experiments.py {subset}"
+        return f"git checkout -- {rel}"
     raise ValueError(f"no restore command for {rel_path!r}")
 
 

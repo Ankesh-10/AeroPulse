@@ -49,8 +49,8 @@ except Exception as exc:  # the page shows the type name only (T-03-02); the tra
     _failure = type(exc).__name__
 if _failure is not None:
     st.error(
-        f"Could not load {subset} ({_failure}). To regenerate the models run "
-        f"`{demo_lib.restore_command(f'models/xgb_{subset}.json', subset)}`."
+        f"Could not load {subset} ({_failure}). To restore the committed model files run "
+        f"`git checkout -- models/xgb_{subset}.json models/prep_{subset}.joblib`."
     )
     st.stop()
 

@@ -236,7 +236,8 @@ def test_missing_file_shows_error_and_stops(tmp_path, monkeypatch):
         "models/prep_FD001.joblib",
         "data_raw/test_FD001.txt",
         "outputs/results_baseline.json",
-        "python src/run_experiments.py FD001",
+        "git checkout -- models/prep_FD001.joblib",
+        "git checkout -- models/xgb_FD001.json",
         "git checkout -- data_raw",
         "git checkout -- outputs/results_baseline.json",
     ):
