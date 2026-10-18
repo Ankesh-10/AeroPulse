@@ -12,7 +12,8 @@ For every requested Python version the script, in a scratch directory outside th
   3. runs tests/test_demo_lib.py, tests/test_demo_hygiene.py and tests/test_demo_app.py in that venv
      (a failure, an error or a skip counts as a failed check);
   4. starts `streamlit run app.py` headlessly and requires HTTP 200 from /_stcore/health and
-     /_stcore/script-health-check;
+     /_stcore/script-health-check (this proves the server and script start, not model loading,
+     because app.py turns a load failure into a page error; the demo tests in step 3 cover that);
   5. times a cold demo_lib.load_bundle for FD001-FD004, each in a fresh process (the D-01 measurement).
 
 --markdown PATH writes the result between the check_clean_env.py markers of PATH (a new file gets a
@@ -309,6 +310,10 @@ def render_markdown(results, when):
         "",
         _table(["Requested Python", "Python", "Install from requirements.txt", "Demo tests", "Headless start"],
                local_rows),
+        "",
+        "Headless start proves that the server and the script start without a traceback. It does not "
+        "prove that the models load: app.py reports a load failure on the page and finishes cleanly, "
+        "and the demo tests (which render the app) cover that.",
         "",
         "Package versions installed from requirements.txt:",
         "",

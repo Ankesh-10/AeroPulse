@@ -33,7 +33,7 @@ This is the checklist for putting the demo on Streamlit Community Cloud. The pus
 
 ## Local measurements (D-01, D-15)
 
-The block below is written by `scripts/check_clean_env.py`. It resolves `requirements.txt` for Cloud's Linux x86_64 platform without installing anything, builds throwaway venvs from `requirements.txt` only on this Windows machine, runs the three demo test files and a headless start, and times a cold load per subset locally. The Linux part is a resolve only, so the real Linux install is still checked at deploy (checklist step 5), and the local timings are not the Cloud cold start (checklist step 6). D-01's precompute threshold is 30 s.
+The block below is written by `scripts/check_clean_env.py`. It resolves `requirements.txt` for Cloud's Linux x86_64 platform without installing anything, builds throwaway venvs from `requirements.txt` only on this Windows machine, runs the three demo test files (which render the app and so cover model loading) and a headless start (which proves only that the server and script start), and times a cold load per subset locally. The Linux part is a resolve only, so the real Linux install is still checked at deploy (checklist step 5), and the local timings are not the Cloud cold start (checklist step 6). D-01's precompute threshold is 30 s.
 
 <!-- BEGIN GENERATED: check_clean_env.py -->
 
