@@ -282,8 +282,12 @@ def waterfall_figure(bundle, row_label):
             )
             with _RC_LOCK, plt.rc_context(plot_style()):
                 fig = plt.figure(figsize=FIG_SIZE)
-                shap.plots.waterfall(expl, max_display=11, show=False)
-                fig.set_size_inches(*FIG_SIZE)  # waterfall resizes the figure; restore
+                try:
+                    shap.plots.waterfall(expl, max_display=11, show=False)
+                    fig.set_size_inches(*FIG_SIZE)  # waterfall resizes the figure; restore
+                except Exception:
+                    plt.close(fig)  # a failed draw must not leave a figure in pyplot's registry
+                    raise
         finally:
             _style.set_style(old)
     return fig

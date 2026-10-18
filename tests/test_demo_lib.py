@@ -336,6 +336,22 @@ def test_tiny_model_waterfall_colours_rows_and_style_restored(tiny_bundle):
         plt.close(fig)
 
 
+def test_failed_waterfall_closes_its_figure_and_restores_style(tiny_bundle, monkeypatch):
+    import shap
+    from shap.plots import _style
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("draw failed")
+
+    monkeypatch.setattr(shap.plots, "waterfall", boom)
+    open_before = set(plt.get_fignums())
+    before = _style_snapshot(_style.get_style())
+    with pytest.raises(RuntimeError, match="draw failed"):
+        D.waterfall_figure(tiny_bundle, 5)
+    assert set(plt.get_fignums()) == open_before
+    assert _style_snapshot(_style.get_style()) == before
+
+
 def test_tiny_model_shap_is_additive(tiny_bundle):
     for label in (0, 10, 30):
         x = tiny_bundle.X.loc[[label]].to_numpy(np.float32)
