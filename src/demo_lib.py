@@ -57,6 +57,10 @@ COLORS = {
 SHAP_TINTS = {"positive": "#8FB6D0", "negative": "#CF9796"}
 # shap.plots.waterfall uses pyplot's current figure and a global style shared across sessions.
 _SHAP_LOCK = threading.Lock()
+# matplotlib.rc_context saves and restores the process-global rcParams and is not thread-safe, so every
+# styled drawing (curve, NASA cost, waterfall) holds this lock. It is reentrant; the waterfall takes
+# _SHAP_LOCK first and _RC_LOCK second, the other figures take only _RC_LOCK, so there is no cycle.
+_RC_LOCK = threading.RLock()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -188,7 +192,8 @@ def plot_style():
 
 
 def curve_figure(eng, cycle, true_final, warn_rul):
-    """Predicted-vs-true RUL curve. Built on Figure (no pyplot state) so sessions do not share it."""
+    """Predicted-vs-true RUL curve. Built on Figure (no pyplot registry); the global rcParams
+    are guarded by _RC_LOCK while it draws."""
     import matplotlib
 
     c = COLORS
@@ -197,7 +202,7 @@ def curve_figure(eng, cycle, true_final, warn_rul):
     seen = eng[eng["cycle"] <= cycle]
     true_curve = np.minimum(true_final + (max_c - cycles), L.RUL_CAP)
     now = row_at(eng, cycle)
-    with matplotlib.rc_context(plot_style()):
+    with _RC_LOCK, matplotlib.rc_context(plot_style()):
         fig = Figure(figsize=FIG_SIZE)
         ax = fig.subplots()
         # Warm-up band under the lines (D-10): cycles with a part-filled rolling window.
@@ -275,7 +280,7 @@ def waterfall_figure(bundle, row_label):
                 vlines_color=COLORS["ink_faint"],
                 tick_labels_color=COLORS["ink_mute"],
             )
-            with plt.rc_context(plot_style()):
+            with _RC_LOCK, plt.rc_context(plot_style()):
                 fig = plt.figure(figsize=FIG_SIZE)
                 shap.plots.waterfall(expl, max_display=11, show=False)
                 fig.set_size_inches(*FIG_SIZE)  # waterfall resizes the figure; restore
@@ -410,7 +415,7 @@ def nasa_figure(d_marker, cost_marker):
     d, cost = nasa_curve(d_marker)
     early, late = d <= 0, d >= 0
     top = 1.25 * max(cost_marker, float(cost[0]))  # whole early branch inside; late branch leaves
-    with matplotlib.rc_context(plot_style()):
+    with _RC_LOCK, matplotlib.rc_context(plot_style()):
         fig = Figure(figsize=FIG_SIZE)
         ax = fig.subplots()
         ax.axvline(0, color=c["ink_faint"], lw=0.8)
