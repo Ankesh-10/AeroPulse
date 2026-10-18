@@ -73,3 +73,7 @@ None. The reconstruction matched the research hashes exactly, so no line was cha
 ## Post-rebuild change (Phase 2, RERUN-04)
 
 The only deviation from Appendix B is commit c0cb307, confined to the persist block of `run_subset`: the gain-importance keys are mapped to feature names, and two additive seed-mean prediction columns are written to `pred_FD00N.csv`. `src/run_experiments.py` therefore no longer matches its hash line above, by design, while `src/rul_lib.py` and `app.py` still do. The verbatim bytes stay checkable with `git show 1c3469a:src/run_experiments.py | sha256sum`. The post-edit hash and the full diff are in `docs/FROZEN.md`.
+
+## Post-rebuild change (Phase 3, DEMO-01..08)
+
+`app.py` deliberately no longer matches Appendix C or its hash line above (the hash line stays unchanged, as a record of the verbatim rebuild). The demo logic moved to `src/demo_lib.py` (loading through the frozen `rul_lib` feature sequence, file checks, slider and row rules, labels and figures) and `app.py` is now a thin renderer with a one-subset cache, a missing-file guard, a guarded cycle slider, a warm-up note, capped-value labels, the disclaimer, the predicted-vs-true curve and the SHAP waterfall. The verbatim bytes stay checkable with `git show 1c3469a:app.py | sha256sum`. The kernel files `src/rul_lib.py` and `src/run_experiments.py` are untouched by this change (see `docs/FROZEN.md`).

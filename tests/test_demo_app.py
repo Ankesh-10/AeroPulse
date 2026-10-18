@@ -3,6 +3,8 @@
 Needs models/, data_raw/ and outputs/results_baseline.json (skipped when absent).
 The parity tests prove the demo serves the Phase 2 baseline model with no train/serve skew.
 """
+import dataclasses
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -98,3 +100,179 @@ def test_curve_and_waterfall_render_at_last_and_first_cycle(bundles):
     b = bundles["FD001"]
     first = demo_lib.row_at(demo_lib.engine_frame(b, 1), 1)
     assert _metric(at, "Predicted RUL (cycles)").value == demo_lib.predicted_label(float(first["pred"]))
+
+
+def _assert_clean(at, expect_info=None):
+    """No exception or error, two metrics, both figures, the disclaimer; the warm-up note only when expected."""
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error, [e.value for e in at.error]
+    assert len(at.metric) == 2
+    assert images(at) >= 2
+    assert any(demo_lib.DISCLAIMER in c.value for c in at.caption)
+    if expect_info is True:
+        assert len(at.info) == 1 and "WARM-UP" in at.info[0].value
+    elif expect_info is False:
+        assert len(at.info) == 0
+
+
+@pytest.mark.parametrize("subset", SUBSETS)
+def test_sweep_first_last_shortest_engine(subset, bundles):
+    b = bundles[subset]
+    lengths = b.te.groupby("unit")["cycle"].max()
+    units = sorted(lengths.index)
+    targets = [units[0], units[-1], int(lengths.idxmin())]
+    at = run_app(subset=subset)
+    _assert_clean(at, expect_info=False)
+    for u in targets:
+        u = int(u)
+        at.sidebar.selectbox(key="unit").set_value(u).run()
+        key = f"cycle-{subset}-{u}"
+        top = int(lengths[u])
+        at.sidebar.slider(key=key).set_value(1).run()
+        _assert_clean(at, expect_info=True)
+        at.sidebar.slider(key=key).set_value(top).run()
+        _assert_clean(at, expect_info=False)
+
+
+def _truncated(b, n):
+    """FD001 unit 1 cut to its first n cycles (same index labels in te and X)."""
+    full = demo_lib.engine_frame(b, 1)
+    max_c = int(full["cycle"].max())
+    true_final = demo_lib.true_final_rul(b, 1)
+    te = full[full["cycle"] <= n]
+    return dataclasses.replace(
+        b, te=te, X=b.X.loc[te.index], rul=np.array([true_final + (max_c - n)])
+    )
+
+
+@pytest.mark.parametrize("n", [1, 2, 5, 9])
+def test_truncated_engine_opens_without_errors(n, bundles, monkeypatch):
+    cut = _truncated(bundles["FD001"], n)
+    monkeypatch.setattr(demo_lib, "load_bundle", lambda subset: cut)
+    at = run_app()
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error
+    assert len(at.info) == 1 and "WARM-UP" in at.info[0].value
+    keys = [s.key for s in at.sidebar.slider]
+    if n == 1:
+        assert "cycle-FD001-1" not in keys
+        assert any("1 of 1" in c.value for c in at.sidebar.caption)
+    else:
+        slider = at.sidebar.slider(key="cycle-FD001-1")
+        assert slider.max == n
+        slider.set_value(1).run()
+        assert not at.exception and not at.error
+        at.sidebar.slider(key="cycle-FD001-1").set_value(n).run()
+        assert not at.exception and not at.error
+
+
+def _fingerprint(b):
+    return (
+        int(pd.util.hash_pandas_object(b.te, index=True).sum()),
+        int(pd.util.hash_pandas_object(b.X, index=True).sum()),
+        b.rul.tobytes(),
+    )
+
+
+def test_cache_keeps_one_subset_and_never_mutates_it(bundles, monkeypatch):
+    calls = []
+    real = demo_lib.load_bundle
+
+    def recording(subset):
+        calls.append(subset)
+        return real(subset)
+
+    monkeypatch.setattr(demo_lib, "load_bundle", recording)
+    at = run_app()
+    at.sidebar.selectbox(key="subset").set_value("FD003").run()
+    assert not at.exception
+    at.sidebar.selectbox(key="subset").set_value("FD001").run()
+    assert not at.exception
+    at.run()
+    assert calls == ["FD001", "FD003", "FD001"]
+
+    # Cached frames are shared by every session: renders must leave them byte-identical.
+    st.cache_resource.clear()
+    fixed = bundles["FD001"]
+    before = _fingerprint(fixed)
+    monkeypatch.setattr(demo_lib, "load_bundle", lambda subset: fixed)
+    at = run_app()
+    at.sidebar.selectbox(key="unit").set_value(2).run()
+    at.sidebar.slider(key="cycle-FD001-2").set_value(3).run()
+    at.sidebar.slider(key="warn_rul").set_value(60).run()
+    assert not at.exception
+    assert _fingerprint(fixed) == before
+
+
+class _SpyExplainer:
+    def __init__(self, inner):
+        self.inner = inner
+        self.expected_value = inner.expected_value
+        self.shapes = []
+
+    def shap_values(self, x):
+        self.shapes.append(tuple(x.shape))
+        return self.inner.shap_values(x)
+
+
+def test_shap_runs_on_one_row_only(bundles, monkeypatch):
+    spy = _SpyExplainer(bundles["FD001"].explainer)
+    spied = dataclasses.replace(bundles["FD001"], explainer=spy)
+    monkeypatch.setattr(demo_lib, "load_bundle", lambda subset: spied)
+    at = run_app()
+    at.sidebar.slider(key="cycle-FD001-1").set_value(5).run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert len(spy.shapes) >= 2
+    assert all(s == (1, spied.X.shape[1]) for s in spy.shapes)
+
+
+def test_missing_file_shows_error_and_stops(tmp_path, monkeypatch):
+    monkeypatch.setattr(demo_lib, "ROOT", tmp_path)
+    at = run_app()
+    assert not at.exception, [e.value for e in at.exception]
+    assert len(at.error) == 1
+    text = at.error[0].value
+    for needle in (
+        "models/prep_FD001.joblib",
+        "data_raw/test_FD001.txt",
+        "outputs/results_baseline.json",
+        "python src/run_experiments.py FD001",
+        "git checkout -- data_raw",
+        "git checkout -- outputs/results_baseline.json",
+    ):
+        assert needle in text, needle
+    assert len(at.metric) == 0
+    assert any(demo_lib.DISCLAIMER in c.value for c in at.caption)
+
+
+def test_stale_selection_after_subset_switch(bundles):
+    at = run_app(subset="FD002", unit=259)
+    assert not at.exception, [e.value for e in at.exception]
+    assert at.sidebar.selectbox(key="unit").value == 259
+    at.sidebar.selectbox(key="subset").set_value("FD001").run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error
+    assert at.sidebar.selectbox(key="unit").value == 1
+    b = bundles["FD001"]
+    last = L.last_cycle_rows(b.te)
+    expected = demo_lib.predicted_label(float(b.te.loc[last[0], "pred"]))
+    assert _metric(at, "Predicted RUL (cycles)").value == expected
+
+
+def test_capped_prediction_and_above_cap_truth_labels(bundles):
+    b = bundles["FD001"]
+    last = L.last_cycle_rows(b.te)
+    preds = b.te.loc[last, "pred"].to_numpy()
+    units = sorted(b.te["unit"].unique())
+    capped = int(units[int(np.flatnonzero(preds >= demo_lib.CAP_LABEL_AT)[0])])
+    above = int(units[int(np.flatnonzero(b.rul > L.RUL_CAP)[0])])
+
+    at = run_app(unit=capped)
+    _assert_clean(at)
+    assert _metric(at, "Predicted RUL (cycles)").value == "125+ (model capped)"
+    assert any(":yellow-badge[125+ CAPPED]" in m.value for m in at.markdown)
+
+    at = run_app(unit=above)
+    _assert_clean(at)
+    notes = [c.value for c in at.caption if "above the 125 training cap" in c.value]
+    assert len(notes) == 1 and "official" in notes[0]

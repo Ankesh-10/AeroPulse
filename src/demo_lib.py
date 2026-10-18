@@ -194,6 +194,15 @@ def curve_figure(eng, cycle, true_final, warn_rul):
     with matplotlib.rc_context(plot_style()):
         fig = Figure(figsize=FIG_SIZE)
         ax = fig.subplots()
+        # Warm-up band under the lines (D-10): cycles with a part-filled rolling window.
+        ax.axvspan(
+            0.5,
+            WARMUP_MAX + 0.5,
+            color=c["canvas_warm"],
+            zorder=0,
+            lw=0,
+            label=f"Warm-up: fewer than {L.WINDOW} cycles of history",
+        )
         ax.plot(seen["cycle"], seen["pred"], color=c["ink"], lw=2, label="Predicted RUL")
         ax.plot(
             cycles,
@@ -243,3 +252,34 @@ def waterfall_figure(bundle, row_label):
         finally:
             _style.set_style(old)
     return fig
+
+
+# ---------------------------------------------------------------- warm-up and truth labels
+WARMUP_MAX = L.WINDOW - 1  # cycles 1..WINDOW-1 have fewer than WINDOW rows in the rolling window
+WARMUP_NOTE = (
+    f"The rolling features at this cycle are built from fewer than {L.WINDOW} cycles, "
+    "so the prediction is less stable."
+)
+
+
+def is_warmup(cycle):
+    """True while the rolling window is not yet full (D-10)."""
+    return cycle <= WARMUP_MAX
+
+
+def true_rul_at(true_final, max_c, cycle):
+    """Uncapped RUL at an earlier cycle, reconstructed from the official final RUL."""
+    return true_final + (max_c - cycle)
+
+
+def above_cap(true_rul):
+    """True when the real RUL exceeds the training cap (D-09)."""
+    return true_rul > L.RUL_CAP
+
+
+def true_rul_note(true_rul, at_last):
+    """Short caption parts for the True RUL tile (D-09)."""
+    notes = ["official" if at_last else "reconstructed from the official final RUL"]
+    if above_cap(true_rul):
+        notes.append(f"above the {L.RUL_CAP} training cap")
+    return notes

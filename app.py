@@ -72,11 +72,22 @@ else:
 row = demo_lib.row_at(eng, cycle)
 pred_now = float(row["pred"])
 true_final = demo_lib.true_final_rul(bundle, unit)
-true_now = true_final + (max_c - cycle)
+true_now = demo_lib.true_rul_at(true_final, max_c, cycle)
+pred_label = demo_lib.predicted_label(pred_now)
+
+if demo_lib.is_warmup(cycle):  # one quiet note, D-10
+    st.info(":yellow-badge[WARM-UP] " + demo_lib.WARMUP_NOTE)
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Predicted RUL (cycles)", demo_lib.predicted_label(pred_now), border=True)
+c1.metric("Predicted RUL (cycles)", pred_label, border=True)
+if pred_label == demo_lib.CAPPED_LABEL:
+    c1.badge("125+ CAPPED", color="yellow")
 c2.metric("True RUL (cycles)", f"{true_now:.0f}", border=True)
+_notes = [
+    f":yellow[{n}]" if n.startswith("above the") else n
+    for n in demo_lib.true_rul_note(true_now, at_last=cycle == max_c)
+]
+c2.caption("; ".join(_notes))
 with c3.container(border=True):
     st.caption("Status")
     if pred_now < warn_rul:
