@@ -1,0 +1,46 @@
+# Theme from DESIGN.md. Theme only: no [server] or [client] tables. Streamlit Cloud reads this file.
+[theme]
+base = "light"
+primaryColor = "#111111"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F6F3"
+textColor = "#2F3437"
+
+# "<family>:<css url>" with no comma fallback list (it would be swallowed into the URL)
+font = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@400..600&display=swap"
+headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:wght@400..600&display=swap"
+codeFont = "Geist Mono:https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400..500&display=swap"
+headingFontSizes = ["2.25rem", "1.25rem", "1.125rem"]
+headingFontWeights = [500, 600, 600]
+metricValueFontSize = "2rem"
+metricValueFontWeight = 500
+
+baseRadius = "8px"
+buttonRadius = "6px"
+borderColor = "#EAEAEA"
+showWidgetBorder = true
+showSidebarBorder = true
+linkColor = "#111111"
+linkUnderline = true
+codeBackgroundColor = "#FBFBFA"
+codeTextColor = "#2F3437"
+
+# Native charts (st.line_chart)
+chartCategoricalColors = ["#2F3437", "#1F6C9F", "#9F2F2D", "#346538", "#956400", "#787774"]
+
+# Semantic pairs for st.badge(color=...) and :color[...] text
+redColor = "#9F2F2D"
+redBackgroundColor = "#FDEBEC"
+redTextColor = "#9F2F2D"
+blueColor = "#1F6C9F"
+blueBackgroundColor = "#E1F3FE"
+blueTextColor = "#1F6C9F"
+greenColor = "#346538"
+greenBackgroundColor = "#EDF3EC"
+greenTextColor = "#346538"
+yellowColor = "#956400"
+yellowBackgroundColor = "#FBF3DB"
+yellowTextColor = "#956400"
+grayColor = "#787774"
+grayBackgroundColor = "#F7F6F3"
+grayTextColor = "#787774"
