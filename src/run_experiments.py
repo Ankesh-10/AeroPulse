@@ -194,14 +194,16 @@ def run_subset(name, results):
     # persist artefacts
     units = te.loc[last, "unit"].to_numpy()
     pd.DataFrame({"unit": units, "cycles_observed": te.loc[last, "cycle"].to_numpy(), "true_rul": rul,
-                  "xgb_pred": xpred0, "rf_pred": rpred0}).to_csv(OUT / f"pred_{name}.csv", index=False)
+                  "xgb_pred": xpred0, "rf_pred": rpred0,
+                  "xgb_pred_mean": xpred_mean, "rf_pred_mean": rpred_mean}).to_csv(OUT / f"pred_{name}.csv", index=False)
     xmodel.save_model(str(MODELS / f"xgb_{name}.json"))
     joblib.dump({"normaliser": norm, "sensors": keep, "feature_names": list(Xtr_full.columns)},
                 MODELS / f"prep_{name}.joblib")
     joblib.dump(rmodel, MODELS / f"rf_{name}.joblib", compress=3)
-    # booster gain importance for the report
+    # booster gain importance for the report (booster keys are f0..f{n-1}: training used NumPy arrays)
+    feature_names = list(Xtr_full.columns)
     imp = pd.Series(xmodel.get_booster().get_score(importance_type="gain")).sort_values(ascending=False)
-    res["top_gain_features"] = {k: float(v) for k, v in imp.head(15).items()}
+    res["top_gain_features"] = {feature_names[int(k[1:])]: float(v) for k, v in imp.head(15).items()}
     results[name] = res
 
 
