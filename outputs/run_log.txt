@@ -1,0 +1,37 @@
+16:04:16 === FD001: conditions=1 fault_modes=1
+16:04:16 kept 14 dropped ['s1', 's5', 's6', 's10', 's16', 's18', 's19']
+16:04:19 features 57 train rows 20631
+16:05:26 XGB tuned: cv_rmse=16.246 iters=167 (67s)
+16:06:10 RF tuned: cv_rmse=16.447 (44s)
+16:06:12 XGB    {'rmse': 17.77, 'mae': 12.76, 'r2': 0.817, 'nasa': 593.849, 'rmse_capped_truth': 16.613}
+16:06:46 RF     {'rmse': 18.181, 'mae': 13.084, 'r2': 0.809, 'nasa': 589.537, 'rmse_capped_truth': 17.011}
+16:07:01   ablation XGBoost (rolling features) 17.77 593.8
+16:07:01   ablation Random Forest (rolling features) 18.181 589.5
+16:07:01   ablation XGBoost default params (rolling features) 20.078 786.0
+16:07:01   ablation XGBoost (raw sensors only) 17.664 570.4
+16:07:01   ablation Random Forest (raw sensors only) 17.881 525.8
+16:07:02 saved FD001
+16:07:02 === FD002: conditions=6 fault_modes=1
+16:07:02 kept 17 dropped ['s1', 's5', 's18', 's19']
+16:07:11 features 69 train rows 53759
+16:10:23 XGB tuned: cv_rmse=16.166 iters=366 (192s)
+16:13:14 RF tuned: cv_rmse=16.452 (172s)
+16:13:23 XGB    {'rmse': 26.804, 'mae': 18.47, 'r2': 0.752, 'nasa': 8437.339, 'rmse_capped_truth': 14.785}
+16:16:23 RF     {'rmse': 27.187, 'mae': 18.896, 'r2': 0.744, 'nasa': 8995.931, 'rmse_capped_truth': 15.204}
+16:16:24 saved FD002
+16:16:24 === FD003: conditions=1 fault_modes=2
+16:16:25 kept 16 dropped ['s1', 's5', 's16', 's18', 's19']
+16:16:29 features 65 train rows 24720
+16:17:23 XGB tuned: cv_rmse=14.685 iters=207 (54s)
+16:18:22 RF tuned: cv_rmse=15.058 (59s)
+16:18:24 XGB    {'rmse': 17.165, 'mae': 12.996, 'r2': 0.828, 'nasa': 581.905, 'rmse_capped_truth': 15.743}
+16:19:09 RF     {'rmse': 18.85, 'mae': 14.136, 'r2': 0.793, 'nasa': 777.937, 'rmse_capped_truth': 17.388}
+16:19:10 saved FD003
+16:19:10 === FD004: conditions=6 fault_modes=2
+16:19:10 kept 17 dropped ['s1', 's5', 's18', 's19']
+16:19:20 features 69 train rows 61249
+16:22:40 XGB tuned: cv_rmse=16.105 iters=247 (200s)
+16:26:21 RF tuned: cv_rmse=16.300 (220s)
+16:26:30 XGB    {'rmse': 28.203, 'mae': 20.652, 'r2': 0.732, 'nasa': 5621.977, 'rmse_capped_truth': 16.948}
+16:29:30 RF     {'rmse': 28.492, 'mae': 21.194, 'r2': 0.727, 'nasa': 5573.973, 'rmse_capped_truth': 17.26}
+16:29:31 saved FD004
