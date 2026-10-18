@@ -1,4 +1,9 @@
 """Shared fixtures and tier-skip logic (unit / data / artifacts / slow)."""
+# Tk crashes threaded AppTest runs on Windows if pyplot is imported before this call.
+import matplotlib
+
+matplotlib.use("Agg")
+
 from pathlib import Path
 
 import numpy as np
