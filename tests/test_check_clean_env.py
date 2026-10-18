@@ -133,6 +133,16 @@ def test_log_shows_failure_ignores_only_the_benign_proactor_reset():
     assert C.log_shows_failure(REAL_LOG + BENIGN_LOG) is True
 
 
+def test_log_shows_failure_does_not_swallow_a_real_traceback_inside_a_benign_looking_span():
+    # Benign header, then a different (real) exception, then a later ConnectionResetError line:
+    # the unbounded pattern deleted everything between the two and reported success.
+    benign_head = BENIGN_LOG.split("ConnectionResetError:")[0]
+    tail = "ConnectionResetError: [WinError 10054] reset\n"
+    assert C.log_shows_failure(benign_head + "KeyError: 'sensor'\n" + tail) is True
+    assert C.log_shows_failure(benign_head + REAL_LOG + tail) is True
+    assert C.log_shows_failure(BENIGN_LOG.replace("\n", "\r\n")) is False
+
+
 # ------------------------------------------------------------------------------------- pins
 
 def test_requirement_pins_are_exactly_the_seven_runtime_pins():

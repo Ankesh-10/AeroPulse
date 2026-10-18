@@ -403,10 +403,20 @@ def stop_process(proc):
 
 # On Windows the asyncio proactor loop sometimes logs a connection reset when the probe client closes
 # its socket (seen on Python 3.14); it comes from the client side and says nothing about the app.
+# The match is bounded to one block: between the header and the terminating ConnectionResetError line
+# it allows at most one "Traceback" line and refuses any other exception line, a second header or a
+# second "Traceback", so a real app traceback in between is never swallowed.
+_BLOCK_LINE = (
+    r"(?!Traceback|Exception in callback|ConnectionResetError:|[A-Za-z_.]+(?:Error|Exception)\b)"
+    r"[^\r\n]+[\r\n]+"
+)
 _BENIGN_TRACEBACK = re.compile(
-    r"Exception in callback _ProactorBasePipeTransport\._call_connection_lost\(\)[\r\n]"
-    r".*?[\r\n]ConnectionResetError:[^\r\n]*",
-    re.S)
+    r"Exception in callback _ProactorBasePipeTransport\._call_connection_lost\(\)[\r\n]+"
+    rf"(?:{_BLOCK_LINE})*"
+    r"(?:Traceback \(most recent call last\):[\r\n]+)?"
+    rf"(?:{_BLOCK_LINE})*"
+    r"ConnectionResetError:[^\r\n]*"
+)
 
 
 def log_shows_failure(text):
