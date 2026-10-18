@@ -196,7 +196,7 @@ def test_app_imports():
     tree = ast.parse(text)
     assert "from demo_lib import" not in text
     mods = _imports(tree.body)
-    allowed = {"sys", "pathlib", "streamlit", "rul_lib", "demo_lib", "matplotlib.pyplot", "numpy", "pandas"}
+    allowed = {"logging", "sys", "pathlib", "streamlit", "rul_lib", "demo_lib", "matplotlib.pyplot", "numpy", "pandas"}
     assert {m for m, _ in mods} <= allowed, {m for m, _ in mods} - allowed
     line = dict(mods)
     assert line["streamlit"] < line["matplotlib.pyplot"]

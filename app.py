@@ -6,6 +6,7 @@ This file replaces the handoff Appendix C app by design: the logic lives in
 src/demo_lib.py and this module only renders. It needs the committed models/,
 data_raw/ and outputs/results_baseline.json.
 """
+import logging
 import sys
 from pathlib import Path
 
@@ -43,7 +44,8 @@ _failure = None
 try:
     with st.spinner(f"Loading {subset} (first load of a subset takes a few seconds)"):
         bundle = _load(subset)
-except Exception as exc:  # reduce to the type name only (T-03-02)
+except Exception as exc:  # the page shows the type name only (T-03-02); the traceback goes to the server log
+    logging.getLogger("aeropulse").exception("load_bundle(%s) failed", subset)
     _failure = type(exc).__name__
 if _failure is not None:
     st.error(
