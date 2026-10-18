@@ -16,6 +16,7 @@ if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 import rul_lib as L  # noqa: E402,F401
 import demo_lib  # noqa: E402  (forces the Agg backend)
+import matplotlib.pyplot as plt  # noqa: E402
 
 st.set_page_config(page_title="AeroPulse: turbofan RUL", page_icon=":material/monitoring:", layout="wide")
 st.title("AeroPulse: turbofan Remaining Useful Life")
@@ -82,3 +83,23 @@ with c3.container(border=True):
         st.badge("SCHEDULE MAINTENANCE", color="red")
     else:
         st.badge("HEALTHY", color="green")
+
+left, right = st.columns(2)
+with left:
+    with st.container(border=True):
+        st.markdown("**Predicted vs true RUL**")
+        fig = demo_lib.curve_figure(eng, cycle, true_final, warn_rul)
+        st.pyplot(fig)
+        plt.close(fig)
+with right:
+    with st.container(border=True):
+        st.markdown("**What drives this prediction (SHAP)**")
+        fig = demo_lib.waterfall_figure(bundle, row.name)
+        st.pyplot(fig)
+        plt.close(fig)
+
+with st.expander("Sensor trends"):
+    sensors = bundle.prep["sensors"]
+    picked = st.multiselect("Sensors", sensors, default=sensors[:4], key=f"sensors-{subset}")
+    if picked:
+        st.line_chart(eng.set_index("cycle")[picked])

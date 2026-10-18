@@ -12,10 +12,12 @@ matplotlib.use("Agg")
 
 import dataclasses  # noqa: E402
 import json  # noqa: E402,F401
+import threading  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from matplotlib.figure import Figure  # noqa: E402
 
 import rul_lib as L  # noqa: E402
 
@@ -29,6 +31,31 @@ DISCLAIMER = (
     "This is simulated NASA C-MAPSS turbofan data and a demo of a machine-learning model. "
     "It is not a maintenance or safety tool."
 )
+
+FIG_SIZE = (6.0, 4.2)
+# DESIGN.md colour tokens (the only colours used in figures).
+COLORS = {
+    "canvas": "#FFFFFF",
+    "canvas_warm": "#F7F6F3",
+    "surface": "#FBFBFA",
+    "ink": "#2F3437",
+    "ink_strong": "#111111",
+    "ink_mute": "#787774",
+    "ink_faint": "#B4B4B0",
+    "hairline": "#EAEAEA",
+    "late": "#9F2F2D",
+    "late_bg": "#FDEBEC",
+    "early": "#1F6C9F",
+    "early_bg": "#E1F3FE",
+    "healthy": "#346538",
+    "healthy_bg": "#EDF3EC",
+    "capped": "#956400",
+    "capped_bg": "#FBF3DB",
+}
+# Lighter tints of the early and late inks for the waterfall's secondary text.
+SHAP_TINTS = {"positive": "#8FB6D0", "negative": "#CF9796"}
+# shap.plots.waterfall uses pyplot's current figure and a global style shared across sessions.
+_SHAP_LOCK = threading.Lock()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,3 +153,93 @@ def row_at(eng, cycle):
 def predicted_label(pred):
     """Predictions at or above 120 cycles read as capped, since training capped RUL at 125 (D-09)."""
     return CAPPED_LABEL if pred >= CAP_LABEL_AT else f"{pred:.0f}"
+
+
+def plot_style():
+    """Shared matplotlib rc dict for every figure (D-19, DESIGN.md Charts)."""
+    c = COLORS
+    return {
+        "figure.facecolor": c["canvas"],
+        "axes.facecolor": c["canvas"],
+        "axes.edgecolor": c["hairline"],
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.grid": True,
+        "axes.grid.axis": "y",
+        "grid.color": c["hairline"],
+        "grid.linewidth": 0.8,
+        "xtick.color": c["ink_mute"],
+        "ytick.color": c["ink_mute"],
+        "axes.labelcolor": c["ink"],
+        "text.color": c["ink"],
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Helvetica Neue", "Arial", "DejaVu Sans"],
+        "font.size": 9,
+        "legend.frameon": False,
+        "legend.fontsize": 8,
+        "legend.labelcolor": c["ink_mute"],
+    }
+
+
+def curve_figure(eng, cycle, true_final, warn_rul):
+    """Predicted-vs-true RUL curve. Built on Figure (no pyplot state) so sessions do not share it."""
+    import matplotlib
+
+    c = COLORS
+    max_c = int(eng["cycle"].max())
+    cycles = eng["cycle"].to_numpy()
+    seen = eng[eng["cycle"] <= cycle]
+    true_curve = np.minimum(true_final + (max_c - cycles), L.RUL_CAP)
+    now = row_at(eng, cycle)
+    with matplotlib.rc_context(plot_style()):
+        fig = Figure(figsize=FIG_SIZE)
+        ax = fig.subplots()
+        ax.plot(seen["cycle"], seen["pred"], color=c["ink"], lw=2, label="Predicted RUL")
+        ax.plot(
+            cycles,
+            true_curve,
+            color=c["ink_mute"],
+            ls="--",
+            lw=1.5,
+            label=f"True RUL (reconstructed from the official final RUL, capped at {L.RUL_CAP})",
+        )
+        ax.axhline(warn_rul, color=c["late"], ls=":", lw=1, label="Alert threshold")
+        ax.plot([now["cycle"]], [now["pred"]], "o", color=c["ink_strong"], ms=5, label="_nolegend_")
+        ax.set_xlabel("Cycle")
+        ax.set_ylabel("RUL (cycles)")
+        # Below the axes so the long true-RUL label never covers the curves.
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2))
+    return fig
+
+
+def waterfall_figure(bundle, row_label):
+    """SHAP waterfall for one row: raises-RUL contributions blue, lowers-RUL red (D-05, D-19)."""
+    import matplotlib.pyplot as plt
+    import shap
+    from shap.plots import _style  # private but present in the pinned shap 0.53.0
+
+    x = bundle.X.loc[[row_label]].to_numpy(np.float32)
+    vals = bundle.explainer.shap_values(x)[0]
+    base = float(np.ravel(bundle.explainer.expected_value)[0])
+    expl = shap.Explanation(
+        values=vals, base_values=base, data=x[0], feature_names=list(bundle.X.columns)
+    )
+    with _SHAP_LOCK:
+        old = _style.get_style()
+        try:
+            _style.set_style(
+                primary_color_positive=COLORS["early"],
+                primary_color_negative=COLORS["late"],
+                secondary_color_positive=SHAP_TINTS["positive"],
+                secondary_color_negative=SHAP_TINTS["negative"],
+                hlines_color=COLORS["hairline"],
+                vlines_color=COLORS["ink_faint"],
+                tick_labels_color=COLORS["ink_mute"],
+            )
+            with plt.rc_context(plot_style()):
+                fig = plt.figure(figsize=FIG_SIZE)
+                shap.plots.waterfall(expl, max_display=11, show=False)
+                fig.set_size_inches(*FIG_SIZE)  # waterfall resizes the figure; restore
+        finally:
+            _style.set_style(old)
+    return fig

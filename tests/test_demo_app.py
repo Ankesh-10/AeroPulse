@@ -78,3 +78,23 @@ def test_default_page_renders(bundles):
     badges = [v for v in md if ":green-badge[HEALTHY]" in v or ":red-badge[SCHEDULE MAINTENANCE]" in v]
     assert len(badges) == 1
     assert any(demo_lib.DISCLAIMER in c.value for c in at.caption)
+
+
+def images(at):
+    """Count figure nodes (st.pyplot renders as Image); iteration over at.main is recursive."""
+    return sum(1 for e in at.main if type(e).__name__ == "Image")
+
+
+def test_curve_and_waterfall_render_at_last_and_first_cycle(bundles):
+    at = run_app()
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error
+    assert images(at) >= 2
+
+    at.sidebar.slider(key="cycle-FD001-1").set_value(1).run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.error
+    assert images(at) >= 2
+    b = bundles["FD001"]
+    first = demo_lib.row_at(demo_lib.engine_frame(b, 1), 1)
+    assert _metric(at, "Predicted RUL (cycles)").value == demo_lib.predicted_label(float(first["pred"]))
