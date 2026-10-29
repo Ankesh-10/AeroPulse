@@ -125,21 +125,24 @@ with c3.container(border=True):
     else:
         st.caption("The official RUL is known only at the last observed cycle.")
 
-left, right = st.columns(2)
-with left:
-    with st.container(border=True):
+# Fixed-width panels in a wrapping row: side by side on a wide screen, one per row below that, and
+# never so narrow that the chart text shrinks (stretch columns would squeeze them to ~230 px).
+PANEL_W = 460
+with st.container(horizontal=True, gap="medium"):
+    with st.container(border=True, width=PANEL_W):
         st.markdown("**Predicted vs true RUL**")
+        _curve_text = demo_lib.curve_text(eng, cycle, true_final)
         fig = demo_lib.curve_figure(eng, cycle, true_final, warn_rul)
-        st.pyplot(fig)
+        st.pyplot(fig, alt=_curve_text)
         plt.close(fig)
-        st.caption(demo_lib.curve_text(eng, cycle, true_final))  # text equivalent: st.pyplot has no alt
-with right:
-    with st.container(border=True):
+        st.caption(_curve_text)
+    with st.container(border=True, width=PANEL_W):
         st.markdown("**What drives this prediction (SHAP)**")
+        _wf_text = demo_lib.waterfall_text(bundle, row.name)
         fig = demo_lib.waterfall_figure(bundle, row.name)
-        st.pyplot(fig)
+        st.pyplot(fig, alt=_wf_text.replace("`", ""))
         plt.close(fig)
-        st.caption(demo_lib.waterfall_text(bundle, row.name))
+        st.caption(_wf_text)
         st.caption(demo_lib.WATERFALL_NOTE)
         st.caption(demo_lib.FEATURE_LEGEND)
         if demo_lib.raw_prediction(bundle, row.name) < 0:
@@ -155,13 +158,14 @@ with st.expander("Why late predictions cost more (NASA score)"):
         f"predicted 10 cycles early it costs {_early:.2f}."
     )
     _d, _cost = demo_lib.nasa_point(true_final, float(eng["pred"].iloc[-1]))
-    fig = demo_lib.nasa_figure(_d, _cost)
-    st.pyplot(fig)
-    plt.close(fig)
-    st.caption(
+    _nasa_text = (
         f"Engine {unit} at its last observed cycle, where the official RUL is known: "
         f"error {_d:+.1f} cycles ({demo_lib.error_word(_d)}), NASA cost {_cost:.2f}."
     )
+    fig = demo_lib.nasa_figure(_d, _cost)
+    st.pyplot(fig, width=PANEL_W, alt=_nasa_text)  # capped so the full-width expander doesn't blow it up
+    plt.close(fig)
+    st.caption(_nasa_text)
 
 with st.expander("Sensor trends"):
     sensors = bundle.prep["sensors"]
@@ -172,7 +176,7 @@ with st.expander("Sensor trends"):
 with st.expander("How to read this"):
     for _line in (
         "- **Predicted RUL** is the model's estimate of the cycles left. It was trained on a target "
-        f"capped at {L.RUL_CAP}, so high values read as 125+ (model capped).",
+        f"capped at {L.RUL_CAP}, so high values read as 125+ with a CAPPED badge.",
         "- **True RUL** is the official value at the last observed cycle; at earlier cycles it is "
         "reconstructed from that value.",
         "- **Status** compares the predicted RUL with the alert threshold in the sidebar.",

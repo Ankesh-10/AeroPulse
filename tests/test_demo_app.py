@@ -270,7 +270,7 @@ def test_capped_prediction_and_above_cap_truth_labels(bundles):
 
     at = run_app(unit=capped)
     _assert_clean(at)
-    assert _metric(at, "Predicted RUL (cycles)").value == "125+ (model capped)"
+    assert _metric(at, "Predicted RUL (cycles)").value == "125+"
     assert any(":yellow-badge[125+ CAPPED]" in m.value for m in at.markdown)
 
     at = run_app(unit=above)

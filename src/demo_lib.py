@@ -27,13 +27,15 @@ SUBSETS = tuple(L.SUBSETS)
 BASELINE = "outputs/results_baseline.json"
 MODEL_KEY = "XGBoost (rolling features)"
 CAP_LABEL_AT = 120
-CAPPED_LABEL = "125+ (model capped)"
+CAPPED_LABEL = "125+"  # short enough for a narrow metric tile; the 125+ CAPPED badge says why
 DISCLAIMER = (
     "This is simulated NASA C-MAPSS turbofan data and a demo of a machine-learning model. "
     "It is not a maintenance or safety tool."
 )
 
-FIG_SIZE = (6.0, 4.2)
+# Small in inches on purpose: st.pyplot scales the image to the column width, so a smaller figure
+# shows its fixed-point text larger (about 10 px on a 375 px phone, 15 px in a desktop panel).
+FIG_SIZE = (4.4, 3.4)
 # DESIGN.md colour tokens (the only colours used in figures).
 COLORS = {
     "canvas": "#FFFFFF",
@@ -184,7 +186,7 @@ def plot_style():
         "text.color": c["ink"],
         "font.family": "sans-serif",
         "font.sans-serif": ["Helvetica Neue", "Arial", "DejaVu Sans"],
-        "font.size": 9,
+        "font.size": 10,
         "legend.frameon": False,
         "legend.fontsize": 8,
         "legend.labelcolor": c["ink_mute"],
@@ -221,7 +223,7 @@ def curve_figure(eng, cycle, true_final, warn_rul):
             color=c["ink_mute"],
             ls="--",
             lw=1.5,
-            label=f"True RUL (reconstructed from the official final RUL, capped at {L.RUL_CAP})",
+            label=f"True RUL (reconstructed, capped at {L.RUL_CAP})",  # short: it sets the image width
         )
         ax.axhline(warn_rul, color=c["late"], ls=":", lw=1, label="Alert threshold")
         ax.plot([now["cycle"]], [now["pred"]], "o", color=c["ink_strong"], ms=5, label="_nolegend_")
@@ -318,7 +320,7 @@ def waterfall_figure(bundle, row_label):
 
 
 def _repair_waterfall_labels(fig, expl):
-    """Fix two label defects of shap 0.53 waterfall under matplotlib 3.11, at the final figure size.
+    """Fix label defects of shap 0.53 waterfall under matplotlib 3.11, at the final figure size.
 
     1. The f(x) header: both top tick labels of the last twin axis render as '= <value>', so f(x)
        is lost and the value is drawn twice, overlapping. Hide them and draw one header.
@@ -347,20 +349,34 @@ def _repair_waterfall_labels(fig, expl):
     renderer = fig.canvas.get_renderer()
     arrows = [p for p in ax.patches if isinstance(p, FancyArrow)]
     pad = 3 * fig.dpi / 72  # 3 pt each side
-    for txt in [t for t in ax.texts if t.get_color() == "white"]:
-        y = txt.get_position()[1]
-        arrow = min(arrows, key=lambda p: abs(p.get_xy()[:, 1].mean() - y))
-        verts = arrow.get_xy()
-        tip = verts[np.argmin(np.abs(verts[:, 1] - y))]  # the only vertex on the bar's centre line
-        xs = np.unique(np.round(ax.transData.transform(verts)[:, 0], 1))  # display px
-        right = ax.transData.transform([tip])[0, 0] >= xs[-1] - 0.5  # raises RUL: tip on the right
-        body = (xs[-2] - xs[0]) if right else (xs[-1] - xs[1])  # straight part, arrowhead excluded
-        if txt.get_window_extent(renderer).width + 2 * pad <= body:
-            continue
-        txt.set_position((tip[0], y))
-        txt.set_transform(offset_copy(ax.transData, fig=fig, x=4 if right else -4, units="points"))
-        txt.set_ha("left" if right else "right")
-        txt.set_color(arrow.get_facecolor())
+
+    def move_unfit_white_values():
+        for txt in [t for t in ax.texts if t.get_color() == "white"]:
+            y = txt.get_position()[1]
+            arrow = min(arrows, key=lambda p: abs(p.get_xy()[:, 1].mean() - y))
+            verts = arrow.get_xy()
+            tip = verts[np.argmin(np.abs(verts[:, 1] - y))]  # the only vertex on the centre line
+            xs = np.unique(np.round(ax.transData.transform(verts)[:, 0], 1))  # display px
+            right = ax.transData.transform([tip])[0, 0] >= xs[-1] - 0.5  # raises RUL: tip on right
+            body = (xs[-2] - xs[0]) if right else (xs[-1] - xs[1])  # straight part, no arrowhead
+            if txt.get_window_extent(renderer).width + 2 * pad <= body:
+                continue
+            txt.set_position((tip[0], y))
+            txt.set_transform(offset_copy(ax.transData, fig=fig, x=4 if right else -4, units="points"))
+            txt.set_ha("left" if right else "right")
+            txt.set_color(arrow.get_facecolor())
+
+    # 3. A value left of a bar near the axis edge runs into the row labels in a narrow figure:
+    #    widen every axis to the left until it clears, then re-check the in-bar fits.
+    for _ in range(3):
+        move_unfit_white_values()
+        over = ax.bbox.x0 + pad - min(t.get_window_extent(renderer).x0 for t in ax.texts)
+        if over <= 0:
+            break
+        lo, hi = ax.get_xlim()
+        new_lo = lo - over / (ax.bbox.width - over) * (hi - lo)
+        for a in fig.axes:  # the twins carry E[f(X)] and f(x) on the same scale
+            a.set_xlim(new_lo, hi)
 
 
 # ---------------------------------------------------------------- warm-up and truth labels

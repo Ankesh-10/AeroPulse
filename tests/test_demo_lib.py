@@ -77,7 +77,7 @@ def test_warmup_flag_covers_cycles_one_to_nine():
 
 def test_predicted_label_caps_at_120():
     assert D.predicted_label(119.4) == "119"
-    assert D.predicted_label(120.0) == "125+ (model capped)"
+    assert D.predicted_label(120.0) == "125+"
     assert D.predicted_label(0.0) == "0"
 
 
@@ -352,6 +352,7 @@ def test_waterfall_header_shows_fx_once_and_white_values_stay_inside_bars(tiny_b
             ax = fig.axes[0]
             arrows = [p.get_window_extent(r) for p in ax.patches if isinstance(p, FancyArrow)]
             for t in ax.texts:
+                assert t.get_window_extent(r).x0 >= ax.bbox.x0, t.get_text()  # clear of row labels
                 if t.get_color() != "white":
                     continue
                 box = t.get_window_extent(r)
