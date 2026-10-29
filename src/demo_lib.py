@@ -34,8 +34,11 @@ DISCLAIMER = (
 )
 
 # Small in inches on purpose: st.pyplot scales the image to the column width, so a smaller figure
-# shows its fixed-point text larger (about 10 px on a 375 px phone, 15 px in a desktop panel).
-FIG_SIZE = (4.4, 3.4)
+# shows its fixed-point text larger (about 11 px on a 375 px phone, 13 px in a 390 px panel).
+FIG_SIZE = (4.0, 3.2)
+# Taller than FIG_SIZE: its wide row labels make it short on screen, and 11 rows need the room. At
+# this height its panel ends level with the curve panel beside it.
+WATERFALL_SIZE = (4.0, 4.35)
 # DESIGN.md colour tokens (the only colours used in figures).
 COLORS = {
     "canvas": "#FFFFFF",
@@ -306,10 +309,10 @@ def waterfall_figure(bundle, row_label):
                 tick_labels_color=COLORS["ink_mute"],
             )
             with _RC_LOCK, plt.rc_context(plot_style()):
-                fig = plt.figure(figsize=FIG_SIZE)
+                fig = plt.figure(figsize=WATERFALL_SIZE)
                 try:
                     shap.plots.waterfall(expl, max_display=11, show=False)
-                    fig.set_size_inches(*FIG_SIZE)  # waterfall resizes the figure; restore
+                    fig.set_size_inches(*WATERFALL_SIZE)  # waterfall resizes the figure; restore
                     _repair_waterfall_labels(fig, expl)
                 except Exception:
                     plt.close(fig)  # a failed draw must not leave a figure in pyplot's registry
@@ -463,9 +466,10 @@ def worst_cases(bundle, n=WORST_N):
 
 # ---------------------------------------------------------------- alert, NASA cost, model card
 def alert_status(pred, threshold):
-    """(badge label, st.badge colour): maintenance below the threshold, healthy otherwise (DEMO-05)."""
+    """(badge label, st.badge colour): maintenance below the threshold, healthy otherwise (DEMO-05).
+    The label stays one short word: badges do not wrap, and a 1024 px window leaves a tile ~140 px wide."""
     if pred < threshold:
-        return "SCHEDULE MAINTENANCE", "red"
+        return "MAINTENANCE", "red"
     return "HEALTHY", "green"
 
 

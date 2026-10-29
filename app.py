@@ -26,10 +26,17 @@ def _mute(text):
     return f":gray[:small[{text}]]"
 
 
+# One content width for every row, so the tiles, the chart panels and the expanders line up. Two
+# panels side by side need 2 * PANEL_W + GAP: that fits from a 1280 px window with the sidebar open
+# (810 px of content) and stays under DESIGN.md's ~1200 px cap on wide screens. Below that the
+# panels wrap to one per row at full PANEL_W, so the chart text never shrinks below phone size.
+PANEL_W, GAP = 390, 16
+ROW_W = 2 * PANEL_W + GAP
+
 st.set_page_config(page_title="AeroPulse: turbofan RUL", page_icon=":material/monitoring:", layout="wide")
 st.title("AeroPulse: turbofan Remaining Useful Life")
 st.markdown(_mute("XGBoost on causal rolling-window features, NASA C-MAPSS FD001-FD004"))
-with st.container(border=True):
+with st.container(border=True, width=ROW_W):
     st.markdown(_mute(":material/info: " + demo_lib.DISCLAIMER))  # always visible (D-08)
 
 subset = st.sidebar.selectbox("C-MAPSS subset", list(demo_lib.SUBSETS), key="subset")
@@ -38,7 +45,7 @@ subset = st.sidebar.selectbox("C-MAPSS subset", list(demo_lib.SUBSETS), key="sub
 _missing = demo_lib.missing_files(subset)
 if _missing:
     _lines = [f"- `{p}`: run `{demo_lib.restore_command(p, subset)}`" for p in _missing]
-    st.error("Required files are missing:\n" + "\n".join(_lines))
+    st.error("Required files are missing:\n" + "\n".join(_lines), width=ROW_W)
     st.stop()
 
 
@@ -57,7 +64,8 @@ except Exception as exc:  # the page shows the type name only (T-03-02); the tra
 if _failure is not None:
     st.error(
         f"Could not load {subset} ({_failure}). To restore the committed model files run "
-        f"`git checkout -- models/xgb_{subset}.json models/prep_{subset}.joblib`."
+        f"`git checkout -- models/xgb_{subset}.json models/prep_{subset}.joblib`.",
+        width=ROW_W,
     )
     st.stop()
 
@@ -110,40 +118,47 @@ true_now = demo_lib.true_rul_at(true_final, max_c, cycle)
 pred_label = demo_lib.predicted_label(pred_now)
 
 if demo_lib.is_warmup(cycle):  # one quiet note, D-10
-    st.info(":yellow-badge[WARM-UP] " + demo_lib.WARMUP_NOTE)
+    st.info(":yellow-badge[WARM-UP] " + demo_lib.WARMUP_NOTE, width=ROW_W)
 
-c1, c2, c3 = st.columns(3)
-c1.metric("Predicted RUL (cycles)", pred_label, border=True)
-if pred_label == demo_lib.CAPPED_LABEL:
-    c1.badge("125+ CAPPED", color="yellow")
-c2.metric("True RUL (cycles)", f"{true_now:.0f}", border=True)
-_notes = [
-    f":yellow[{n}]" if n.startswith("above the") else n
-    for n in demo_lib.true_rul_note(true_now, at_last=cycle == max_c)
-]
-c2.markdown(_mute("; ".join(_notes)))
-with c3.container(border=True):
+# Three equal tiles; each holds its value and the note or badge that qualifies it. Every tile is
+# labelled the way Status is, in wrapping small print: st.metric's own label cannot wrap and is cut
+# off when the tiles are narrow (the sidebar open on a 1024 px window).
+c1, c2, c3 = st.columns(3, gap=GAP, width=ROW_W)
+with c1.container(border=True, height="stretch"):
+    st.markdown(_mute("Predicted RUL (cycles)"))
+    st.metric("Predicted RUL (cycles)", pred_label, label_visibility="collapsed")
+    if pred_label == demo_lib.CAPPED_LABEL:
+        st.badge("125+ CAPPED", color="yellow")
+with c2.container(border=True, height="stretch"):
+    st.markdown(_mute("True RUL (cycles)"))
+    st.metric("True RUL (cycles)", f"{true_now:.0f}", label_visibility="collapsed")
+    _notes = [
+        f":yellow[{n}]" if n.startswith("above the") else n
+        for n in demo_lib.true_rul_note(true_now, at_last=cycle == max_c)
+    ]
+    st.markdown(_mute("; ".join(_notes)))
+with c3.container(border=True, height="stretch"):
     st.markdown(_mute("Status"))
     _status, _colour = demo_lib.alert_status(pred_now, warn_rul)
     st.badge(_status, color=_colour)
+    if _colour == "red":
+        st.markdown(_mute(f"Predicted RUL is below the {warn_rul}-cycle alert."))  # no directive: not a maintenance tool
     if cycle == max_c:
         _err = pred_now - true_final
         st.markdown(_mute(f"Last-cycle error: {_err:+.1f} cycles ({demo_lib.error_word(_err)})"))
     else:
         st.markdown(_mute("The official RUL is known only at the last observed cycle."))
 
-# Fixed-width panels in a wrapping row: side by side on a wide screen, one per row below that, and
-# never so narrow that the chart text shrinks (stretch columns would squeeze them to ~230 px).
-PANEL_W = 460
-with st.container(horizontal=True, gap="medium"):
-    with st.container(border=True, width=PANEL_W):
+# Fixed-width panels in a wrapping row (stretch columns would squeeze them to ~230 px when narrow).
+with st.container(horizontal=True, gap=GAP, width=ROW_W):
+    with st.container(border=True, width=PANEL_W, height="stretch"):
         st.markdown("**Predicted vs true RUL**")
         _curve_text = demo_lib.curve_text(eng, cycle, true_final)
         fig = demo_lib.curve_figure(eng, cycle, true_final, warn_rul)
         st.pyplot(fig, alt=_curve_text)
         plt.close(fig)
         st.markdown(_mute(_curve_text))
-    with st.container(border=True, width=PANEL_W):
+    with st.container(border=True, width=PANEL_W, height="stretch"):
         st.markdown("**What drives this prediction (SHAP)**")
         _wf_text = demo_lib.waterfall_text(bundle, row.name)
         fig = demo_lib.waterfall_figure(bundle, row.name)
@@ -151,13 +166,12 @@ with st.container(horizontal=True, gap="medium"):
         plt.close(fig)
         st.markdown(_mute(_wf_text))
         st.markdown(_mute(demo_lib.WATERFALL_NOTE))
-        st.markdown(_mute(demo_lib.FEATURE_LEGEND))
         if demo_lib.raw_prediction(bundle, row.name) < 0:
             st.markdown(_mute(
                 "The model's raw output for this cycle is below 0; the app shows predictions clipped at 0."
             ))
 
-with st.expander("Why late predictions cost more (NASA score)"):
+with st.expander("Why late predictions cost more (NASA score)", width=ROW_W):
     st.markdown(demo_lib.NASA_EXPLANATION)
     _late, _early = demo_lib.nasa_examples()
     st.markdown(
@@ -170,17 +184,17 @@ with st.expander("Why late predictions cost more (NASA score)"):
         f"error {_d:+.1f} cycles ({demo_lib.error_word(_d)}), NASA cost {_cost:.2f}."
     )
     fig = demo_lib.nasa_figure(_d, _cost)
-    st.pyplot(fig, width=PANEL_W, alt=_nasa_text)  # capped so the full-width expander doesn't blow it up
+    st.pyplot(fig, width=PANEL_W, alt=_nasa_text)  # panel width, like the two charts above
     plt.close(fig)
     st.markdown(_mute(_nasa_text))
 
-with st.expander("Sensor trends"):
+with st.expander("Sensor trends", width=ROW_W):
     sensors = bundle.prep["sensors"]
     picked = st.multiselect("Sensors", sensors, default=sensors[:4], key=f"sensors-{subset}")
     if picked:
         st.line_chart(eng.set_index("cycle")[picked])
 
-with st.expander("How to read this"):
+with st.expander("How to read this", width=ROW_W):
     for _line in (
         "- **Predicted RUL** is the model's estimate of the cycles left. It was trained on a target "
         f"capped at {L.RUL_CAP}, so high values read as 125+ with a CAPPED badge.",
@@ -194,6 +208,7 @@ with st.expander("How to read this"):
         "- **Waterfall**: blue bars raise the predicted RUL, red bars lower it.",
     ):
         st.markdown(_line)
+    st.markdown(_mute(demo_lib.FEATURE_LEGEND))  # the waterfall's glossary
     try:
         st.markdown(demo_lib.model_card_line(demo_lib.model_card(subset)))
         st.markdown(_mute(demo_lib.NOISE_NOTE))

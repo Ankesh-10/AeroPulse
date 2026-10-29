@@ -77,7 +77,7 @@ def test_default_page_renders(bundles):
     expected = demo_lib.predicted_label(float(b.te.loc[last[0], "pred"]))
     assert _metric(at, "Predicted RUL (cycles)").value == expected
     md = [m.value for m in at.markdown]
-    badges = [v for v in md if ":green-badge[HEALTHY]" in v or ":red-badge[SCHEDULE MAINTENANCE]" in v]
+    badges = [v for v in md if ":green-badge[HEALTHY]" in v or ":red-badge[MAINTENANCE]" in v]
     assert len(badges) == 1
     assert any(demo_lib.DISCLAIMER in c.value for c in at.markdown)
 
@@ -361,10 +361,11 @@ def test_alert_badge_flips_at_threshold(bundles):
     at = run_app(unit=unit)
     at.sidebar.slider(key="warn_rul").set_value(math.floor(pred) + 1).run()
     assert not at.exception, [e.value for e in at.exception]
-    assert any(":red-badge[SCHEDULE MAINTENANCE]" in m.value for m in at.markdown)
+    assert any(":red-badge[MAINTENANCE]" in m.value for m in at.markdown)
+    assert any("-cycle alert." in m.value for m in at.markdown)
     at.sidebar.slider(key="warn_rul").set_value(math.floor(pred)).run()
     assert any(":green-badge[HEALTHY]" in m.value for m in at.markdown)
-    assert not any(":red-badge[SCHEDULE MAINTENANCE]" in m.value for m in at.markdown)
+    assert not any(":red-badge[MAINTENANCE]" in m.value for m in at.markdown)
 
 
 def test_page_structure_follows_d04():

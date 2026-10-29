@@ -254,7 +254,7 @@ def test_nasa_figure_colours():
 
 
 def test_alert_status_flips_at_threshold():
-    assert D.alert_status(29.9, 30) == ("SCHEDULE MAINTENANCE", "red")
+    assert D.alert_status(29.9, 30) == ("MAINTENANCE", "red")
     assert D.alert_status(30.0, 30) == ("HEALTHY", "green")
 
 
@@ -323,7 +323,7 @@ def test_tiny_model_waterfall_colours_rows_and_style_restored(tiny_bundle):
     before = _style_snapshot(_style.get_style())
     fig = D.waterfall_figure(tiny_bundle, 5)
     try:
-        assert tuple(fig.get_size_inches()) == pytest.approx(D.FIG_SIZE)
+        assert tuple(fig.get_size_inches()) == pytest.approx(D.WATERFALL_SIZE)
         ax = fig.axes[0]
         labels = [t.get_text() for t in ax.get_yticklabels()]
         assert any("3 other features" in t for t in labels), labels

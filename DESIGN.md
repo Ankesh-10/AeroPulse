@@ -211,7 +211,7 @@ One shared style helper (for example `demo_lib.plot_style()` returning an rc dic
 
 ## Components
 
-- **Status badge:** a pill with uppercase micro label and wide tracking, pastel by state: `HEALTHY`, `SCHEDULE MAINTENANCE`, `125+ CAPPED`. Use `st.badge` if the pinned Streamlit has it and its colours can be themed to the pastels. Otherwise use a static-string HTML span. Interpolate only numbers or fixed labels, never data strings.
+- **Status badge:** a pill with uppercase micro label and wide tracking, pastel by state: `HEALTHY`, `MAINTENANCE`, `125+ CAPPED`. Badges never wrap, so keep each label short enough for a ~140 px tile and put the longer explanation in the tile's small print (a statement, never a maintenance directive). Use `st.badge` if the pinned Streamlit has it and its colours can be themed to the pastels. Otherwise use a static-string HTML span. Interpolate only numbers or fixed labels, never data strings.
 - **Worst-case list entries:** `Engine 34 · +41 late` style. The signed number is mono, and the late/early word is tinted with its pastel ink.
 - **Notes:**
   - The warm-up note uses the `capped` pastel pair.
