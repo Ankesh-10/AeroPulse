@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 .streamlit/secrets.toml
 smoke/
+graphify-out/
+.claude/
+Claude_Code_Handoff.pdf
