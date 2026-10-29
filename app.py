@@ -132,12 +132,14 @@ with left:
         fig = demo_lib.curve_figure(eng, cycle, true_final, warn_rul)
         st.pyplot(fig)
         plt.close(fig)
+        st.caption(demo_lib.curve_text(eng, cycle, true_final))  # text equivalent: st.pyplot has no alt
 with right:
     with st.container(border=True):
         st.markdown("**What drives this prediction (SHAP)**")
         fig = demo_lib.waterfall_figure(bundle, row.name)
         st.pyplot(fig)
         plt.close(fig)
+        st.caption(demo_lib.waterfall_text(bundle, row.name))
         st.caption(demo_lib.WATERFALL_NOTE)
         st.caption(demo_lib.FEATURE_LEGEND)
         if demo_lib.raw_prediction(bundle, row.name) < 0:

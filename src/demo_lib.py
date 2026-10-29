@@ -255,6 +255,29 @@ def shap_explanation(bundle, row_label):
     )
 
 
+def waterfall_text(bundle, row_label, k=3):
+    """Text equivalent of the waterfall: the k largest contributions by size, signed, in cycles."""
+    expl = shap_explanation(bundle, row_label)
+    order = np.argsort(-np.abs(expl.values), kind="stable")[:k]
+    parts = [f"`{expl.feature_names[i]}` {expl.values[i]:+.2f}" for i in order]
+    fx = float(expl.base_values) + float(np.sum(expl.values))
+    return (
+        f"Largest contributions (cycles of predicted RUL): {', '.join(parts)}. "
+        f"The model output f(x) is {fx:.2f}; its average E[f(X)] is {float(expl.base_values):.2f}."
+    )
+
+
+def curve_text(eng, cycle, true_final):
+    """Text equivalent of the curve: predicted RUL at the first and current cycle, and the truth."""
+    first, now = eng.iloc[0], row_at(eng, cycle)
+    true_now = true_rul_at(true_final, int(eng["cycle"].max()), int(now["cycle"]))
+    return (
+        f"Predicted RUL goes from {first['pred']:.0f} at cycle {int(first['cycle'])} to "
+        f"{now['pred']:.0f} at cycle {int(now['cycle'])}, where the true RUL is {true_now:.0f} "
+        f"(the dashed line caps it at {L.RUL_CAP})."
+    )
+
+
 def raw_prediction(bundle, row_label):
     """The unclipped model output for one row (the waterfall's f(x), Pitfall 5)."""
     x = bundle.X.loc[[row_label]].to_numpy(np.float32)
@@ -285,12 +308,59 @@ def waterfall_figure(bundle, row_label):
                 try:
                     shap.plots.waterfall(expl, max_display=11, show=False)
                     fig.set_size_inches(*FIG_SIZE)  # waterfall resizes the figure; restore
+                    _repair_waterfall_labels(fig, expl)
                 except Exception:
                     plt.close(fig)  # a failed draw must not leave a figure in pyplot's registry
                     raise
         finally:
             _style.set_style(old)
     return fig
+
+
+def _repair_waterfall_labels(fig, expl):
+    """Fix two label defects of shap 0.53 waterfall under matplotlib 3.11, at the final figure size.
+
+    1. The f(x) header: both top tick labels of the last twin axis render as '= <value>', so f(x)
+       is lost and the value is drawn twice, overlapping. Hide them and draw one header.
+    2. White in-bar values: shap tests the fit against the bar including its arrowhead, so values
+       such as +2.93 run off the bar onto white (the '+' then reads as a minus). A value that does
+       not fit inside the bar's straight body moves just past the arrow tip, in the bar's colour.
+    """
+    from matplotlib.patches import FancyArrow
+    from matplotlib.transforms import offset_copy
+
+    ax, top = fig.axes[0], fig.axes[-1]  # shap draws the bars on axes 0 and the f(x) twin last
+    fx = float(expl.base_values) + float(np.sum(expl.values))
+    top.tick_params(labeltop=False, labelbottom=False)
+    top.annotate(
+        f"f(x) = {fx:.3f}",
+        xy=(fx, 1),
+        xycoords=("data", "axes fraction"),
+        xytext=(0, 4),
+        textcoords="offset points",
+        ha="center",
+        va="bottom",
+        fontsize=12,
+        color=COLORS["ink"],
+    )
+
+    renderer = fig.canvas.get_renderer()
+    arrows = [p for p in ax.patches if isinstance(p, FancyArrow)]
+    pad = 3 * fig.dpi / 72  # 3 pt each side
+    for txt in [t for t in ax.texts if t.get_color() == "white"]:
+        y = txt.get_position()[1]
+        arrow = min(arrows, key=lambda p: abs(p.get_xy()[:, 1].mean() - y))
+        verts = arrow.get_xy()
+        tip = verts[np.argmin(np.abs(verts[:, 1] - y))]  # the only vertex on the bar's centre line
+        xs = np.unique(np.round(ax.transData.transform(verts)[:, 0], 1))  # display px
+        right = ax.transData.transform([tip])[0, 0] >= xs[-1] - 0.5  # raises RUL: tip on the right
+        body = (xs[-2] - xs[0]) if right else (xs[-1] - xs[1])  # straight part, arrowhead excluded
+        if txt.get_window_extent(renderer).width + 2 * pad <= body:
+            continue
+        txt.set_position((tip[0], y))
+        txt.set_transform(offset_copy(ax.transData, fig=fig, x=4 if right else -4, units="points"))
+        txt.set_ha("left" if right else "right")
+        txt.set_color(arrow.get_facecolor())
 
 
 # ---------------------------------------------------------------- warm-up and truth labels

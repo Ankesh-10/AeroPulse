@@ -336,6 +336,42 @@ def test_tiny_model_waterfall_colours_rows_and_style_restored(tiny_bundle):
         plt.close(fig)
 
 
+def test_waterfall_header_shows_fx_once_and_white_values_stay_inside_bars(tiny_bundle):
+    from matplotlib.patches import FancyArrow
+
+    for label in (0, 5, 30):
+        fig = D.waterfall_figure(tiny_bundle, label)
+        try:
+            fig.canvas.draw()
+            top = fig.axes[-1]
+            assert not [t for t in top.get_xticklabels(which="both") if t.get_visible() and t.get_text()]
+            heads = [t.get_text() for t in top.texts]
+            raw = D.raw_prediction(tiny_bundle, label)
+            assert heads == [f"f(x) = {raw:.3f}"], heads
+            r = fig.canvas.get_renderer()
+            ax = fig.axes[0]
+            arrows = [p.get_window_extent(r) for p in ax.patches if isinstance(p, FancyArrow)]
+            for t in ax.texts:
+                if t.get_color() != "white":
+                    continue
+                box = t.get_window_extent(r)
+                assert any(a.x0 <= box.x0 and box.x1 <= a.x1 for a in arrows), t.get_text()
+        finally:
+            plt.close(fig)
+
+
+def test_chart_text_equivalents(tiny_bundle):
+    text = D.waterfall_text(tiny_bundle, 5)
+    assert text.startswith("Largest contributions") and text.count("`") == 6
+    assert f"{D.raw_prediction(tiny_bundle, 5):.2f}" in text
+    eng = pd.DataFrame({"cycle": [1, 2, 3], "pred": [120.0, 80.4, 60.6]})
+    assert D.curve_text(eng, 3, 7.0) == (
+        "Predicted RUL goes from 120 at cycle 1 to 61 at cycle 3, where the true RUL is 7 "
+        f"(the dashed line caps it at {L.RUL_CAP})."
+    )
+    assert "to 80 at cycle 2, where the true RUL is 8 " in D.curve_text(eng, 2, 7.0)
+
+
 def test_failed_waterfall_closes_its_figure_and_restores_style(tiny_bundle, monkeypatch):
     import shap
     from shap.plots import _style
