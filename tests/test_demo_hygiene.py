@@ -174,6 +174,11 @@ def test_no_raw_html_or_css():
         assert "unsafe_allow_html" not in text and "<style" not in text, path.name
 
 
+def test_small_print_avoids_st_caption():
+    # st.caption's container has opacity 0.6, which fails WCAG AA for the ink-mute token: use _mute.
+    assert ".caption(" not in _text(APP)
+
+
 def test_single_title_no_other_headings_tabs_uploads_or_images():
     tree = ast.parse(_text(APP))
     attrs = [

@@ -363,7 +363,7 @@ def test_waterfall_header_shows_fx_once_and_white_values_stay_inside_bars(tiny_b
 
 def test_chart_text_equivalents(tiny_bundle):
     text = D.waterfall_text(tiny_bundle, 5)
-    assert text.startswith("Largest contributions") and text.count("`") == 6
+    assert text.startswith("Largest contributions") and text.count(", ") >= 2 and "`" not in text
     assert f"{D.raw_prediction(tiny_bundle, 5):.2f}" in text
     eng = pd.DataFrame({"cycle": [1, 2, 3], "pred": [120.0, 80.4, 60.6]})
     assert D.curve_text(eng, 3, 7.0) == (

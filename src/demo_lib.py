@@ -43,7 +43,7 @@ COLORS = {
     "surface": "#FBFBFA",
     "ink": "#2F3437",
     "ink_strong": "#111111",
-    "ink_mute": "#787774",
+    "ink_mute": "#6E6D6A",
     "ink_faint": "#B4B4B0",
     "hairline": "#EAEAEA",
     "late": "#9F2F2D",
@@ -261,7 +261,7 @@ def waterfall_text(bundle, row_label, k=3):
     """Text equivalent of the waterfall: the k largest contributions by size, signed, in cycles."""
     expl = shap_explanation(bundle, row_label)
     order = np.argsort(-np.abs(expl.values), kind="stable")[:k]
-    parts = [f"`{expl.feature_names[i]}` {expl.values[i]:+.2f}" for i in order]
+    parts = [f"{expl.feature_names[i]} {expl.values[i]:+.2f}" for i in order]
     fx = float(expl.base_values) + float(np.sum(expl.values))
     return (
         f"Largest contributions (cycles of predicted RUL): {', '.join(parts)}. "

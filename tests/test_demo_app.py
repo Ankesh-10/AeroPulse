@@ -79,7 +79,7 @@ def test_default_page_renders(bundles):
     md = [m.value for m in at.markdown]
     badges = [v for v in md if ":green-badge[HEALTHY]" in v or ":red-badge[SCHEDULE MAINTENANCE]" in v]
     assert len(badges) == 1
-    assert any(demo_lib.DISCLAIMER in c.value for c in at.caption)
+    assert any(demo_lib.DISCLAIMER in c.value for c in at.markdown)
 
 
 def images(at):
@@ -108,7 +108,7 @@ def _assert_clean(at, expect_info=None):
     assert not at.error, [e.value for e in at.error]
     assert len(at.metric) == 2
     assert images(at) >= 2
-    assert any(demo_lib.DISCLAIMER in c.value for c in at.caption)
+    assert any(demo_lib.DISCLAIMER in c.value for c in at.markdown)
     if expect_info is True:
         assert len(at.info) == 1 and "WARM-UP" in at.info[0].value
     elif expect_info is False:
@@ -156,7 +156,7 @@ def test_truncated_engine_opens_without_errors(n, bundles, monkeypatch):
     keys = [s.key for s in at.sidebar.slider]
     if n == 1:
         assert "cycle-FD001-1" not in keys
-        assert any("1 of 1" in c.value for c in at.sidebar.caption)
+        assert any("1 of 1" in c.value for c in at.sidebar.markdown)
     else:
         slider = at.sidebar.slider(key="cycle-FD001-1")
         assert slider.max == n
@@ -243,7 +243,7 @@ def test_missing_file_shows_error_and_stops(tmp_path, monkeypatch):
     ):
         assert needle in text, needle
     assert len(at.metric) == 0
-    assert any(demo_lib.DISCLAIMER in c.value for c in at.caption)
+    assert any(demo_lib.DISCLAIMER in c.value for c in at.markdown)
 
 
 def test_stale_selection_after_subset_switch(bundles):
@@ -275,7 +275,7 @@ def test_capped_prediction_and_above_cap_truth_labels(bundles):
 
     at = run_app(unit=above)
     _assert_clean(at)
-    notes = [c.value for c in at.caption if "above the 125 training cap" in c.value]
+    notes = [c.value for c in at.markdown if "above the 125 training cap" in c.value]
     assert len(notes) == 1 and "official" in notes[0]
 
 
@@ -343,7 +343,7 @@ def test_panels_and_model_card(subset, bundles):
     assert not at.error, [e.value for e in at.error]
     assert [e.label for e in at.expander] == EXPANDERS
     assert images(at) >= 3
-    text = "\n".join([m.value for m in at.markdown] + [c.value for c in at.caption])
+    text = "\n".join([m.value for m in at.markdown])
     assert demo_lib.model_card_line(demo_lib.model_card(subset)) in text
     assert demo_lib.NOISE_NOTE in text
     assert demo_lib.WATERFALL_NOTE in text and demo_lib.FEATURE_LEGEND in text
@@ -390,7 +390,7 @@ def test_page_structure_follows_d04():
     first_image = order.index("Image")
     first_expander = order.index("Expander")
     disclaimer = next(
-        i for i, (t, v) in enumerate(names) if t == "Caption" and demo_lib.DISCLAIMER in str(v)
+        i for i, (t, v) in enumerate(names) if t == "Markdown" and demo_lib.DISCLAIMER in str(v)
     )
     assert disclaimer < first_metric < first_image < first_expander
     images_before = sum(1 for t in order[:first_expander] if t == "Image")

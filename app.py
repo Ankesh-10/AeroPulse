@@ -19,11 +19,18 @@ import rul_lib as L  # noqa: E402,F401
 import demo_lib  # noqa: E402  (forces the Agg backend)
 import matplotlib.pyplot as plt  # noqa: E402
 
+
+def _mute(text):
+    """Small text in the ink-mute token, for st.markdown. st.caption is not used: its container has
+    opacity 0.6, which takes any mid-gray below WCAG AA (charcoal fades to 3.7:1 on white)."""
+    return f":gray[:small[{text}]]"
+
+
 st.set_page_config(page_title="AeroPulse: turbofan RUL", page_icon=":material/monitoring:", layout="wide")
 st.title("AeroPulse: turbofan Remaining Useful Life")
-st.caption("XGBoost on causal rolling-window features, NASA C-MAPSS FD001-FD004")
+st.markdown(_mute("XGBoost on causal rolling-window features, NASA C-MAPSS FD001-FD004"))
 with st.container(border=True):
-    st.caption(":material/info: " + demo_lib.DISCLAIMER)  # always visible (D-08)
+    st.markdown(_mute(":material/info: " + demo_lib.DISCLAIMER))  # always visible (D-08)
 
 subset = st.sidebar.selectbox("C-MAPSS subset", list(demo_lib.SUBSETS), key="subset")
 
@@ -79,10 +86,10 @@ st.sidebar.selectbox(
     on_change=_pick_worst,
     args=(wkey,),
 )
-st.sidebar.caption(
+st.sidebar.markdown(_mute(
     "The engines this model gets most wrong at their last observed cycle (predicted minus official "
     "RUL), listed so the demo is not cherry-picked."
-)
+))
 warn_rul = st.sidebar.slider(
     "Maintenance alert when predicted RUL is below (cycles)", 10, 80, 30, key="warn_rul"
 )
@@ -91,7 +98,7 @@ eng = demo_lib.engine_frame(bundle, unit)
 max_c = int(eng["cycle"].max())
 lo, hi, fixed = demo_lib.slider_bounds(max_c)
 if fixed:
-    st.sidebar.caption("Observed up to cycle: 1 of 1")
+    st.sidebar.markdown(_mute("Observed up to cycle: 1 of 1"))
     cycle = 1
 else:
     cycle = st.sidebar.slider("Observed up to cycle", lo, hi, hi, key=f"cycle-{subset}-{unit}")
@@ -114,16 +121,16 @@ _notes = [
     f":yellow[{n}]" if n.startswith("above the") else n
     for n in demo_lib.true_rul_note(true_now, at_last=cycle == max_c)
 ]
-c2.caption("; ".join(_notes))
+c2.markdown(_mute("; ".join(_notes)))
 with c3.container(border=True):
-    st.caption("Status")
+    st.markdown(_mute("Status"))
     _status, _colour = demo_lib.alert_status(pred_now, warn_rul)
     st.badge(_status, color=_colour)
     if cycle == max_c:
         _err = pred_now - true_final
-        st.caption(f"Last-cycle error: {_err:+.1f} cycles ({demo_lib.error_word(_err)})")
+        st.markdown(_mute(f"Last-cycle error: {_err:+.1f} cycles ({demo_lib.error_word(_err)})"))
     else:
-        st.caption("The official RUL is known only at the last observed cycle.")
+        st.markdown(_mute("The official RUL is known only at the last observed cycle."))
 
 # Fixed-width panels in a wrapping row: side by side on a wide screen, one per row below that, and
 # never so narrow that the chart text shrinks (stretch columns would squeeze them to ~230 px).
@@ -135,20 +142,20 @@ with st.container(horizontal=True, gap="medium"):
         fig = demo_lib.curve_figure(eng, cycle, true_final, warn_rul)
         st.pyplot(fig, alt=_curve_text)
         plt.close(fig)
-        st.caption(_curve_text)
+        st.markdown(_mute(_curve_text))
     with st.container(border=True, width=PANEL_W):
         st.markdown("**What drives this prediction (SHAP)**")
         _wf_text = demo_lib.waterfall_text(bundle, row.name)
         fig = demo_lib.waterfall_figure(bundle, row.name)
-        st.pyplot(fig, alt=_wf_text.replace("`", ""))
+        st.pyplot(fig, alt=_wf_text)
         plt.close(fig)
-        st.caption(_wf_text)
-        st.caption(demo_lib.WATERFALL_NOTE)
-        st.caption(demo_lib.FEATURE_LEGEND)
+        st.markdown(_mute(_wf_text))
+        st.markdown(_mute(demo_lib.WATERFALL_NOTE))
+        st.markdown(_mute(demo_lib.FEATURE_LEGEND))
         if demo_lib.raw_prediction(bundle, row.name) < 0:
-            st.caption(
+            st.markdown(_mute(
                 "The model's raw output for this cycle is below 0; the app shows predictions clipped at 0."
-            )
+            ))
 
 with st.expander("Why late predictions cost more (NASA score)"):
     st.markdown(demo_lib.NASA_EXPLANATION)
@@ -165,7 +172,7 @@ with st.expander("Why late predictions cost more (NASA score)"):
     fig = demo_lib.nasa_figure(_d, _cost)
     st.pyplot(fig, width=PANEL_W, alt=_nasa_text)  # capped so the full-width expander doesn't blow it up
     plt.close(fig)
-    st.caption(_nasa_text)
+    st.markdown(_mute(_nasa_text))
 
 with st.expander("Sensor trends"):
     sensors = bundle.prep["sensors"]
@@ -189,11 +196,11 @@ with st.expander("How to read this"):
         st.markdown(_line)
     try:
         st.markdown(demo_lib.model_card_line(demo_lib.model_card(subset)))
-        st.caption(demo_lib.NOISE_NOTE)
+        st.markdown(_mute(demo_lib.NOISE_NOTE))
     except (KeyError, ValueError):
-        st.caption("The model card could not be read from the saved results.")
-    st.caption(
+        st.markdown(_mute("The model card could not be read from the saved results."))
+    st.markdown(_mute(
         "The demo serves the original XGBoost model, which includes the cycle feature (the engine's "
         "age, a strong driver, so part of its skill is age-based). A version without it is reported "
         "only as an ablation."
-    )
+    ))

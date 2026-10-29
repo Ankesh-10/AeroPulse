@@ -9,7 +9,7 @@ colors:
   surface: "#FBFBFA"
   ink: "#2F3437"
   ink-strong: "#111111"
-  ink-mute: "#787774"
+  ink-mute: "#6E6D6A"
   ink-faint: "#B4B4B0"
   hairline: "#EAEAEA"
   action: "#111111"
@@ -149,7 +149,7 @@ Source protocol: taste-skill `minimalist-ui` (Premium Utilitarian Minimalism). T
 | `surface` | `#FBFBFA` | Expander bodies, code blocks |
 | `ink` | `#2F3437` | Body text, chart text, predicted-RUL line |
 | `ink-strong` | `#111111` | Title, metric values |
-| `ink-mute` | `#787774` | Captions, axis ticks, helper copy, true-RUL dashed line |
+| `ink-mute` | `#6E6D6A` | Captions, axis ticks, helper copy, true-RUL dashed line |
 | `ink-faint` | `#B4B4B0` | Disabled text, chart minor elements |
 | `hairline` | `#EAEAEA` | Borders, dividers, chart grid |
 | `action` | `#111111` | Streamlit `primaryColor`: slider thumb/track, focus, selected widget state |
@@ -172,6 +172,7 @@ Rule: a pastel background always pairs with its own ink. Saturated reds, greens,
 - **Numbers:** Geist Mono with tabular figures for metric values, signed errors (`+41`, `-12`) and code.
 - Banned: Inter, Roboto, Open Sans.
 - Line height 1.6 for body text. Captions sit at `{typography.caption}` 13px in `{colors.ink-mute}`.
+- Captions and helper copy are written as `st.markdown(":gray[:small[...]]")`, never `st.caption`. Streamlit 1.65 draws the caption container at opacity 0.6, which takes any mid-gray below WCAG AA (charcoal fades to 3.7:1 on white). `ink-mute` `#6E6D6A` at full opacity is 5.17:1 on `canvas` and 4.79:1 on `canvas-warm`.
 - Fonts are configured through Streamlit's theme (`font`, `headingFont`, `codeFont`, and `fontFaces` if the pinned Streamlit supports them). If a webfont can't load (offline, a Cloud restriction), the fallback chain must still look correct. Never block rendering on a font.
 - Matplotlib figures can't rely on webfonts. They use `'Helvetica Neue', 'Arial', 'DejaVu Sans'` (DejaVu is what Cloud's Linux image has) at 9-10pt, `{colors.ink}` text and `{colors.ink-mute}` ticks.
 
@@ -195,18 +196,18 @@ Sidebar, top to bottom: subset, engine, worst-case picker, alert threshold, "Obs
 
 One shared style helper (for example `demo_lib.plot_style()` returning an rc dict, or a context manager) applies to every figure:
 - `figure.facecolor` / `axes.facecolor` `#FFFFFF`; top and right spines off; left and bottom spines `#EAEAEA`.
-- Grid: y only, `#EAEAEA`, 0.8 px. Ticks `#787774`. Labels `#2F3437`. No chart titles inside figures; the panel caption names the chart.
+- Grid: y only, `#EAEAEA`, 0.8 px. Ticks `#6E6D6A`. Labels `#2F3437`. No chart titles inside figures; the panel caption names the chart.
 - Curve:
   - predicted RUL: solid `#2F3437`, 2 px
-  - true RUL (capped, reconstructed): dashed `#787774`, 1.5 px
+  - true RUL (capped, reconstructed): dashed `#6E6D6A`, 1.5 px
   - alert threshold: dotted `#9F2F2D`, 1 px
   - cycles 1-9: an `axvspan` band in `#F7F6F3`
   - the current cycle: a small `#111111` marker
 - SHAP waterfall: override shap's default colours so contributions that raise RUL use `#1F6C9F` and those that lower it use `#9F2F2D`. Keep the top 10 + "other N features" row. Size the figure to match the curve panel.
 - NASA cost curve: early branch `#1F6C9F`, late branch `#9F2F2D`, the engine's marker in `#111111` with its value annotated in mono.
-- Legends: `frameon=False`, 8pt, `#787774`.
+- Legends: `frameon=False`, 8pt, `#6E6D6A`.
 - Always `plt.close(fig)` after `st.pyplot(fig)`.
-- Streamlit-native charts (sensor trends) take the muted categorical palette below through theme config where supported: `#2F3437, #1F6C9F, #9F2F2D, #346538, #956400, #787774`.
+- Streamlit-native charts (sensor trends) take the muted categorical palette below through theme config where supported: `#2F3437, #1F6C9F, #9F2F2D, #346538, #956400, #6E6D6A`.
 
 ## Components
 

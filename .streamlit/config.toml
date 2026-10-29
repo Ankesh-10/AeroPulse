@@ -26,7 +26,7 @@ codeBackgroundColor = "#FBFBFA"
 codeTextColor = "#2F3437"
 
 # Native charts (st.line_chart)
-chartCategoricalColors = ["#2F3437", "#1F6C9F", "#9F2F2D", "#346538", "#956400", "#787774"]
+chartCategoricalColors = ["#2F3437", "#1F6C9F", "#9F2F2D", "#346538", "#956400", "#6E6D6A"]
 
 # Semantic pairs for st.badge(color=...) and :color[...] text
 redColor = "#9F2F2D"
@@ -41,6 +41,6 @@ greenTextColor = "#346538"
 yellowColor = "#956400"
 yellowBackgroundColor = "#FBF3DB"
 yellowTextColor = "#956400"
-grayColor = "#787774"
+grayColor = "#6E6D6A"
 grayBackgroundColor = "#F7F6F3"
-grayTextColor = "#787774"
+grayTextColor = "#6E6D6A"
